@@ -720,18 +720,6 @@ export default function AIAssistantDetailPage({ assistantId, onBack }: Props) {
                 <div className="mt-2 flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      window.dispatchEvent(new CustomEvent('nav:view', { detail: { view: 'settings' } }));
-                      setTimeout(() => window.dispatchEvent(new CustomEvent('nav:settings', {
-                        detail: { tab: 'introduction', subtab: 'ai-assistant' },
-                      })), 80);
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-cyan-600/20 text-cyan-400 hover:bg-cyan-600/30 border border-cyan-600/40 transition-colors"
-                  >
-                    📖 Hướng dẫn tích hợp 9Router
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => ipc.shell?.openExternal('http://localhost:20128')}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
                   >

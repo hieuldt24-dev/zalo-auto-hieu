@@ -6,22 +6,18 @@ import { useEmployeeStore } from '@/store/employeeStore';
 import { playNotificationSound, requestNotificationPermission, showDesktopNotification } from '@/utils/NotificationService';
 import { showConfirm } from '../common/ConfirmDialog';
 import { extractApiError } from '@/utils/apiError';
-import IntroductionSettings from './IntroductionSettings';
-import ChangelogSettings from './ChangelogSettings';
 import ConversationSettings from './ConversationSettings';
 import WorkspaceSettings from './WorkspaceSettings';
 import ProxySettings from './ProxySettings';
 import LockScreenSettings from './LockScreenSettings';
 import AccountSettings from './AccountSettings';
-import { loadSeenTabs, markTabSeen, SETTINGS_WATCHLIST, hasUnseenChangelog, markChangelogSeen } from '@/utils/settingsSeenTabs';
+import { loadSeenTabs, markTabSeen, SETTINGS_WATCHLIST } from '@/utils/settingsSeenTabs';
 
-type SettingsTab = 'notifications' | 'accounts' | 'storage' | 'conversation' | 'employees' | 'workspace' | 'introduction' | 'changelog' | 'appearance' | 'proxy' | 'security';
+type SettingsTab = 'notifications' | 'accounts' | 'storage' | 'conversation' | 'employees' | 'workspace' | 'appearance' | 'proxy' | 'security';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('conversation');
-  const [introSubtab, setIntroSubtab] = useState<string | null>(null);
   const [seenTabs, setSeenTabs] = useState<Set<string>>(() => loadSeenTabs());
-  const [unreadChangelog, setUnreadChangelog] = useState(() => hasUnseenChangelog());
   const [storagePath, setStoragePath] = useState<string>('');
   const [defaultStoragePath, setDefaultStoragePath] = useState<string>('');
   const [actualDbPath, setActualDbPath] = useState<string>('');
@@ -45,12 +41,12 @@ export default function Settings() {
     });
   }, []);
 
-  // Lắng nghe sự kiện điều hướng từ các màn hình khác (ví dụ: link điều khoản trong modal đăng nhập)
+  // Lắng nghe sự kiện điều hướng từ các màn hình khác
   useEffect(() => {
+    const VALID_TABS: SettingsTab[] = ['notifications', 'accounts', 'storage', 'conversation', 'workspace', 'appearance', 'proxy', 'security'];
     const handler = (e: Event) => {
-      const { tab, subtab } = (e as CustomEvent).detail || {};
-      if (tab) setActiveTab(tab as SettingsTab);
-      if (subtab) setIntroSubtab(subtab);
+      const { tab } = (e as CustomEvent).detail || {};
+      if (tab && VALID_TABS.includes(tab as SettingsTab)) setActiveTab(tab as SettingsTab);
     };
     window.addEventListener('nav:settings', handler);
     return () => window.removeEventListener('nav:settings', handler);
@@ -61,11 +57,6 @@ export default function Settings() {
     if ((SETTINGS_WATCHLIST as readonly string[]).includes(activeTab)) {
       markTabSeen(activeTab);
       setSeenTabs(loadSeenTabs());
-    }
-    // Changelog: đánh dấu đã đọc log phiên bản hiện tại
-    if (activeTab === 'changelog') {
-      markChangelogSeen();
-      setUnreadChangelog(false);
     }
   }, [activeTab]);
 
@@ -153,8 +144,6 @@ export default function Settings() {
     { id: 'security',      icon: '🛡️', label: 'Bảo mật' },
     { id: 'workspace',     icon: '🗂️', label: 'Workspace' },
     { id: 'storage',       icon: '📁', label: 'Lưu trữ' },
-    { id: 'introduction',  icon: '📖', label: 'Giới thiệu' },
-    { id: 'changelog',     icon: '🗒️', label: 'Log phiên bản' },
   ];
 
   // Filter nav items by permission — employee/simulation mode may hide certain tabs
@@ -191,10 +180,6 @@ export default function Settings() {
               <span className="font-medium">{item.label}</span>
               {/* Chấm đỏ "mới" — chỉ hiện khi tab chưa được xem lần nào */}
               {(SETTINGS_WATCHLIST as readonly string[]).includes(item.id) && !seenTabs.has(item.id) && (
-                <span className="ml-auto w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-              )}
-              {/* Chấm đỏ cho changelog — hiện khi có bản cập nhật chưa đọc */}
-              {item.id === 'changelog' && unreadChangelog && (
                 <span className="ml-auto w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
               )}
             </button>
@@ -463,12 +448,6 @@ export default function Settings() {
         {/* ── Employees ── */}
         {activeTab === 'proxy' && <ProxySettings />}
         {activeTab === 'workspace' && <WorkspaceSettings />}
-
-        {/* ── Introduction ── */}
-        {activeTab === 'introduction' && <IntroductionSettings initialSubtab={introSubtab as any} />}
-
-        {/* ── Changelog ── */}
-        {activeTab === 'changelog' && <ChangelogSettings />}
 
       </div>
     </div>

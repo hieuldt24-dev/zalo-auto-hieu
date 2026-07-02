@@ -10,21 +10,9 @@ interface AddAccountModalProps {
 
 /** Footer điều khoản — dùng chung cho cả QR và Cookie tab */
 function TosFooter() {
-  const { setView, setAddAccountModalOpen } = useAppStore();
   return (
     <p className="text-gray-600 text-[11px] text-center pt-3 leading-relaxed">
-      Khi bạn đăng nhập là đã đồng ý{' '}
-      <button
-        type="button"
-        onClick={() => {
-          setAddAccountModalOpen(false);
-          setView('settings');
-          window.dispatchEvent(new CustomEvent('nav:settings', { detail: { tab: 'introduction' } }));
-        }}
-        className="text-blue-500 hover:text-blue-400 underline underline-offset-2 transition-colors"
-      >
-        điều khoản sử dụng tại đây
-      </button>
+      Khi bạn đăng nhập là đã đồng ý với điều khoản sử dụng.
     </p>
   );
 }

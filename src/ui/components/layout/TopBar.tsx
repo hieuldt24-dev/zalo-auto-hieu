@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ipc from '@/lib/ipc';
-
-const SUPPORT_GITHUB_URL = 'https://github.com/huyhoang171/zalo-auto';
 import { useAppStore, FONT_SCALE_MIN, FONT_SCALE_MAX, FONT_SCALE_STEP } from '@/store/appStore';
 import { useAccountStore } from '@/store/accountStore';
 import { useUpdateStore } from '@/store/updateStore';
@@ -22,7 +20,7 @@ export default function TopBar() {
   const [loadingOldMsgs, setLoadingOldMsgs] = useState(false);
   const [lockScreenEnabled, setLockScreenEnabled] = useState(false);
 
-  // More dropdown (guide + bug report + font size)
+  // More dropdown (font size)
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
   // Font size slider: local temp value, only applies on release
@@ -307,29 +305,6 @@ export default function TopBar() {
         {/*  </button>*/}
         {/*)}*/}
 
-        {/* GitHub Star button */}
-        <button
-          onClick={() => ipc.shell?.openExternal(SUPPORT_GITHUB_URL)}
-          className="w-9 h-9 flex items-center justify-center text-gray-400 hover:bg-gray-700 hover:text-yellow-400 transition-colors relative group/gh"
-          title={"⭐ Star ZaloAuto trên GitHub\nDự án mã nguồn mở — Ủng hộ team bằng cách ghé thăm và thả sao nhé!"}
-        >
-          <span className="relative">
-            {/* GitHub icon */}
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
-            </svg>
-            {/* Golden star overlay */}
-            <svg
-              width="10" height="10" viewBox="0 0 24 24" fill="#facc15"
-              className="absolute -top-1.5 -right-2 drop-shadow-sm"
-            >
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-            </svg>
-          </span>
-        </button>
-
-
-
         {/* Lock screen button — only visible when lock screen is enabled */}
         {lockScreenEnabled && (
           <button
@@ -369,12 +344,12 @@ export default function TopBar() {
           )}
         </button>
 
-        {/* ── More dropdown (guide + bug report + font size) ── */}
+        {/* ── More dropdown (font size) ── */}
         <div className="relative" ref={moreRef}>
           <button
             onClick={() => setMoreOpen(v => !v)}
             className="w-9 h-9 flex items-center justify-center text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
-            title="Thêm (cỡ chữ, hướng dẫn, báo lỗi)"
+            title="Thêm (cỡ chữ)"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="1.5"/>
@@ -414,67 +389,6 @@ export default function TopBar() {
                   <span className="text-[10px] text-gray-500">24px</span>
                 </div>
               </div>
-
-              {/* Hướng dẫn sử dụng */}
-              <button
-                onClick={() => {
-                  setMoreOpen(false);
-                  window.dispatchEvent(new CustomEvent('nav:view', { detail: { view: 'settings' } }));
-                  setTimeout(() => window.dispatchEvent(new CustomEvent('nav:settings', { detail: { tab: 'introduction', subtab: 'overview' } })), 80);
-                }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-700 hover:text-blue-400 transition-colors text-left"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-                </svg>
-                <div>
-                  <p className="text-xs font-medium">Hướng dẫn sử dụng</p>
-                  <p className="text-[10px] text-gray-500">Tính năng & thao tác cơ bản</p>
-                </div>
-              </button>
-
-              {/* Báo lỗi */}
-              <button
-                onClick={() => {
-                  setMoreOpen(false);
-                  window.dispatchEvent(new CustomEvent('nav:view', { detail: { view: 'settings' } }));
-                  setTimeout(() => window.dispatchEvent(new CustomEvent('nav:settings', { detail: { tab: 'introduction', subtab: 'bugreport' } })), 80);
-                }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-700 hover:text-red-400 transition-colors text-left border-t border-gray-700/50"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-                  <path d="M8 2l1.88 1.88M14.12 3.88L16 2M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/>
-                  <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/>
-                  <path d="M12 20v-9M6.53 9C4.6 8.8 3 7.1 3 5M6 13H2M6 17H2M18 13h4M17.47 9c1.93-.2 3.53-1.9 3.53-4M18 17h4"/>
-                </svg>
-                <div>
-                  <p className="text-xs font-medium">Báo lỗi</p>
-                  <p className="text-[10px] text-gray-500">Gửi phản hồi & báo cáo lỗi</p>
-                </div>
-              </button>
-
-              {/* Donate Coffee */}
-              <button
-                onClick={() => {
-                  setMoreOpen(false);
-                  window.dispatchEvent(new CustomEvent('nav:view', { detail: { view: 'settings' } }));
-                  setTimeout(() => window.dispatchEvent(new CustomEvent('nav:settings', { detail: { tab: 'introduction', subtab: 'donate' } })), 80);
-                }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-700 hover:text-amber-400 transition-colors text-left border-t border-gray-700/50"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-                  <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
-                  <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
-                  <line x1="6" y1="1" x2="6" y2="4"/>
-                  <line x1="10" y1="1" x2="10" y2="4"/>
-                  <line x1="14" y1="1" x2="14" y2="4"/>
-                </svg>
-                <div>
-                  <p className="text-xs font-medium">☕ Donate Coffee</p>
-                  <p className="text-[10px] text-gray-500">Các bác có thể ủng hộ em mua token AI để fix bug nhé!</p>
-                </div>
-              </button>
             </div>
           )}
         </div>
