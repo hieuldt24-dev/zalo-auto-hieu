@@ -28,12 +28,6 @@ interface CampaignRow {
   total: number; sent: number; failed: number; pending: number; replied: number;
   deliveryRate: number; replyRate: number;
 }
-interface WorkflowData {
-  totalRuns: number; successRuns: number; errorRuns: number; successRate: number;
-  avgDuration: number;
-  topWorkflows: Array<{ workflowName: string; runs: number; successRate: number }>;
-  timeline: Array<{ bucket: string; success: number; error: number }>;
-}
 interface AIData {
   totalRequests: number; totalTokens: number; totalPromptTokens: number; totalCompletionTokens: number;
   byModel: Array<{ model: string; requests: number; tokens: number }>;
@@ -360,7 +354,6 @@ export default function AnalyticsPage() {
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [friendReqs, setFriendReqs] = useState<{ totalSent: number; totalReceived: number; timeline: any[] }>({ totalSent: 0, totalReceived: 0, timeline: [] });
   const [contactGrowth, setContactGrowth] = useState<ContactGrowthPoint[]>([]);
-  const [workflowData, setWorkflowData] = useState<WorkflowData | null>(null);
   const [aiData, setAIData] = useState<AIData | null>(null);
   const [responseTimeData, setResponseTimeData] = useState<ResponseTimeData | null>(null);
   const [labelUsageData, setLabelUsageData] = useState<LabelUsageData | null>(null);
@@ -415,7 +408,7 @@ export default function AnalyticsPage() {
     const ipc = api();
     try {
       const tt = threadType === -1 ? undefined : threadType;
-      const [overviewRes, volumeRes, heatmapRes, segRes, campRes, frRes, growthRes, wfRes, aiRes, rtRes, luRes] = await Promise.all([
+      const [overviewRes, volumeRes, heatmapRes, segRes, campRes, frRes, growthRes, aiRes, rtRes, luRes] = await Promise.all([
         ipc?.dashboardOverview({ zaloId: selectedAccountId }),
         ipc?.messageVolume({ zaloId: selectedAccountId, sinceTs: from, untilTs: to, granularity: periodDays <= 2 ? 'hour' : 'day', threadType: tt }),
         ipc?.peakHours({ zaloId: selectedAccountId, sinceTs: from, untilTs: to, threadType: tt }),
@@ -423,7 +416,6 @@ export default function AnalyticsPage() {
         ipc?.campaignComparison({ zaloId: selectedAccountId }),
         ipc?.friendRequests({ zaloId: selectedAccountId, sinceTs: from, untilTs: to }),
         ipc?.contactGrowth({ zaloId: selectedAccountId, sinceTs: from, untilTs: to }),
-        ipc?.workflowAnalytics({ zaloId: selectedAccountId, sinceTs: from, untilTs: to }),
         ipc?.aiAnalytics({ sinceTs: from, untilTs: to }),
         ipc?.responseTime({ zaloId: selectedAccountId, sinceTs: from, untilTs: to, threadType: tt }),
         ipc?.labelUsage({ zaloId: selectedAccountId, sinceTs: from, untilTs: to }),
@@ -435,7 +427,6 @@ export default function AnalyticsPage() {
       if (campRes?.success) setCampaigns(campRes.data || []);
       if (frRes?.success) setFriendReqs({ totalSent: frRes.totalSent, totalReceived: frRes.totalReceived, timeline: frRes.timeline || [] });
       if (growthRes?.success) setContactGrowth(growthRes.data || []);
-      if (wfRes?.success) setWorkflowData(wfRes as any);
       if (aiRes?.success) setAIData(aiRes as any);
       if (rtRes?.success) setResponseTimeData(rtRes as any);
       if (luRes?.success) setLabelUsageData(luRes as any);
@@ -465,11 +456,6 @@ export default function AnalyticsPage() {
   ].filter(d => d.value > 0) : [];
 
   // Workflow pie
-  const wfPieData = workflowData ? [
-    { name: 'Thành công', value: workflowData.successRuns, fill: '#10b981' },
-    { name: 'Lỗi', value: workflowData.errorRuns, fill: '#ef4444' },
-  ].filter(d => d.value > 0) : [];
-
   // AI model pie
   const aiModelPie = aiData?.byModel.map((m, i) => ({
     name: m.model, value: m.tokens, fill: PIE_COLORS[i % PIE_COLORS.length],
@@ -583,7 +569,7 @@ export default function AnalyticsPage() {
       {activeTab === 'overview' && (
         <OverviewTab
           loading={loading} overview={overview} todayTrend={todayTrend}
-          friendReqs={friendReqs} workflowData={workflowData} aiData={aiData}
+          friendReqs={friendReqs} aiData={aiData}
           volume={volume} periodDays={periodDays}
           responseTime={responseTimeData} contactType={contactType}
           contactGrowth={contactGrowth} labelUsage={labelUsageData}
@@ -613,11 +599,11 @@ export default function AnalyticsPage() {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: Overview
 // ══════════════════════════════════════════════════════════════════════════════
-function OverviewTab({ loading, overview, todayTrend, friendReqs, workflowData, aiData, volume, periodDays, responseTime, contactType, contactGrowth, labelUsage }: {
+function OverviewTab({ loading, overview, todayTrend, friendReqs, aiData, volume, periodDays, responseTime, contactType, contactGrowth, labelUsage }: {
   loading: boolean; overview: OverviewData | null;
   todayTrend?: { value: string; positive: boolean };
   friendReqs: { totalSent: number; totalReceived: number; timeline: any[] };
-  workflowData: WorkflowData | null; aiData: AIData | null;
+  aiData: AIData | null;
   volume: VolumePoint[]; periodDays: number;
   responseTime: ResponseTimeData | null; contactType: ContactType;
   contactGrowth: ContactGrowthPoint[]; labelUsage: LabelUsageData | null;
@@ -640,8 +626,6 @@ function OverviewTab({ loading, overview, todayTrend, friendReqs, workflowData, 
           color={overview.activeCampaigns > 0 ? 'green' : 'yellow'} />
         <KPICard icon="🤝" label="Lời mời KB" value={friendReqs.totalReceived + friendReqs.totalSent}
           sub={`${friendReqs.totalSent} gửi · ${friendReqs.totalReceived} nhận`} color="yellow" />
-        <KPICard icon="⚡" label="Workflow chạy" value={workflowData?.totalRuns ?? 0}
-          sub={workflowData ? `${workflowData.successRate}% thành công` : '—'} color="orange" />
         <KPICard icon="🤖" label="AI requests" value={aiData?.totalRequests ?? 0}
           sub={aiData ? `${aiData.totalTokens.toLocaleString('vi-VN')} tokens` : '—'} color="purple" />
       </div>
@@ -1323,110 +1307,6 @@ function CampaignsTab({ loading, campaigns, overview }: {
           <span className="text-3xl mb-3 block">📢</span>
           Chưa có chiến dịch nào cho tài khoản này
         </div>
-      )}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// TAB: Workflow
-// ══════════════════════════════════════════════════════════════════════════════
-function WorkflowTab({ loading, workflowData, wfPieData }: {
-  loading: boolean; workflowData: WorkflowData | null; wfPieData: any[];
-}) {
-  if (loading) return <SkeletonChart />;
-  if (!workflowData || workflowData.totalRuns === 0) {
-    return (
-      <div className="text-center py-16 text-gray-500 text-sm">
-        <span className="text-3xl mb-3 block">⚡</span>
-        Chưa có dữ liệu workflow trong khoảng thời gian đã chọn
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <KPICard icon="⚡" label="Tổng lượt chạy" value={workflowData.totalRuns} color="blue" />
-        <KPICard icon="✅" label="Thành công" value={workflowData.successRuns} color="green" />
-        <KPICard icon="❌" label="Lỗi" value={workflowData.errorRuns} color="red" />
-        <KPICard icon="📊" label="Tỷ lệ thành công" value={`${workflowData.successRate}%`} color="cyan" />
-        <KPICard icon="⏱️" label="TB thời gian" value={`${(workflowData.avgDuration / 1000).toFixed(1)}s`} color="purple" />
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        {/* Timeline */}
-        <Section title="📈 Lượt chạy theo ngày">
-          {workflowData.timeline.length === 0 ? (
-            <p className="text-xs text-gray-500 text-center py-8">Chưa có dữ liệu</p>
-          ) : (
-            <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={workflowData.timeline} margin={{ top: 4, right: 8, bottom: 0, left: -18 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                  <XAxis dataKey="bucket" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 9, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={ChartTooltip} />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                  <Bar dataKey="success" name="Thành công" fill="#10b981" radius={[2, 2, 0, 0]} maxBarSize={16} stackId="wf" />
-                  <Bar dataKey="error" name="Lỗi" fill="#ef4444" radius={[2, 2, 0, 0]} maxBarSize={16} stackId="wf" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </Section>
-
-        {/* Success/Error pie */}
-        <Section title="🥧 Phân bổ kết quả">
-          {wfPieData.length === 0 ? (
-            <p className="text-xs text-gray-500 text-center py-8">Chưa có dữ liệu</p>
-          ) : (
-            <div className="h-52 flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={wfPieData} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    innerRadius={40} outerRadius={70} paddingAngle={3} strokeWidth={0}>
-                    {wfPieData.map((d, i) => <Cell key={i} fill={d.fill} />)}
-                  </Pie>
-                  <Tooltip content={PieTooltip} />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </Section>
-      </div>
-
-      {/* Top workflows table */}
-      {workflowData.topWorkflows.length > 0 && (
-        <Section title="🏆 Top Workflows">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-gray-500 border-b border-gray-700">
-                  <th className="text-left py-2 px-2 font-medium">#</th>
-                  <th className="text-left py-2 px-2 font-medium">Tên Workflow</th>
-                  <th className="text-right py-2 px-2 font-medium">Lượt chạy</th>
-                  <th className="text-right py-2 px-2 font-medium">Tỷ lệ thành công</th>
-                </tr>
-              </thead>
-              <tbody>
-                {workflowData.topWorkflows.map((wf, i) => (
-                  <tr key={i} className="border-b border-gray-700/50 hover:bg-gray-700/20 transition-colors">
-                    <td className="py-2 px-2 text-gray-500">{i + 1}</td>
-                    <td className="py-2 px-2 text-gray-200 font-medium">{wf.workflowName}</td>
-                    <td className="py-2 px-2 text-right text-gray-300">{wf.runs}</td>
-                    <td className="py-2 px-2 text-right">
-                      <span className={wf.successRate >= 80 ? 'text-green-400' : wf.successRate >= 50 ? 'text-yellow-400' : 'text-red-400'}>
-                        {wf.successRate}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Section>
       )}
     </div>
   );

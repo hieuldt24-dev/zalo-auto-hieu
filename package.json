@@ -11,53 +11,35 @@
     "build:renderer": "vite build",
     "production": "tsc -p tsconfig.electron.prod.json && node scripts/strip-console.js && npm run build:renderer && electron-builder --publish never"
   },
-  "author": "babyvibe <babyvibe@users.noreply.github.com>",
-  "homepage": "https://deplaoapp.com",
+  "author": "huyhoang171",
+  "homepage": "https://github.com/huyhoang171/zalo-auto",
   "license": "MIT",
   "dependencies": {
     "axios": "^1.7.8",
-    "axios-cookiejar-support": "^5.0.3",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.9.0",
-    "bytenode": "^1.5.7",
-    "cloudflared": "^0.7.1",
-    "dompurify": "^3.4.1",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.8.3",
     "ffmpeg-static": "^5.3.0",
-    "googleapis": "^171.4.0",
     "https-proxy-agent": "^9.0.0",
     "image-size": "^2.0.2",
-    "jsonwebtoken": "^9.0.3",
-    "localtunnel": "^2.0.2",
-    "mqtt": "^5.15.1",
     "node-cron": "^4.2.1",
     "node-fetch": "^2.7.0",
-    "nodemailer": "^8.0.3",
-    "otplib": "^13.4.0",
     "proxy-agent": "^8.0.1",
-    "quill": "^2.0.3",
     "react-is": "^19.2.7",
-    "react-quill-new": "^3.8.3",
     "react-zoom-pan-pinch": "^3.7.0",
-    "reactflow": "^11.11.4",
     "recharts": "^3.8.0",
     "socks-proxy-agent": "^10.0.0",
-    "tough-cookie": "^5.0.0",
     "uuid": "^13.0.0",
-    "xlsx": "^0.18.5",
     "zca-js": "^2.1.2"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
     "@types/jest": "^29.5.14",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/mqtt": "^0.0.34",
     "@types/node": "^22.10.1",
     "@types/node-cron": "^3.0.11",
     "@types/node-fetch": "^2.6.13",
-    "@types/nodemailer": "^7.0.11",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.2",
     "@types/uuid": "^10.0.0",
@@ -99,13 +81,11 @@
       "dist-electron/**/*",
       "resources/**/*",
       "node_modules/ffmpeg-static/**/*",
-      "node_modules/cloudflared/**/*",
       "package.json"
     ],
     "asarUnpack": [
       "resources/icons/**",
       "node_modules/better-sqlite3/**",
-      "node_modules/cloudflared/**",
       "node_modules/ffmpeg-static/**"
     ],
     "afterPack": "./scripts/after-pack.js",
@@ -128,9 +108,9 @@
       "signAndEditExecutable": false
     },
     "protocols": {
-      "name": "Deplao Deep Link",
+      "name": "ZaloAuto Deep Link",
       "schemes": [
-        "deplao"
+        "zaloauto"
       ]
     },
     "nsis": {
@@ -174,7 +154,7 @@
       "category": "Network"
     },
     "deb": {
-      "maintainer": "babyvibe <babyvibe@users.noreply.github.com>"
+      "maintainer": "huyhoang171"
     }
   }
 }

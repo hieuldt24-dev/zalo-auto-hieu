@@ -176,7 +176,7 @@ function ContactResultItem({ contact, query, onClick, groupInfoCache }: {
             ? <img src={contact.avatar_url} alt={name} className="w-11 h-11 rounded-full object-cover" onError={() => {
                 setAvatarFailed(true);
                 const ownerId = contact.owner_zalo_id;
-                if (ownerId && (contact.channel === 'facebook' || /^\d+$/.test(ownerId))) {
+                if (ownerId && contact.channel === 'facebook') {
                   ipc.fb.refreshContactAvatar({ accountId: ownerId, userId: contact.contact_id })
                     .then(res => { if (res.success && res.avatarUrl) setAvatarFailed(false); })
                     .catch(() => {});
@@ -225,7 +225,7 @@ function MessageResultItem({ msg, query, contacts, onClick, groupInfoCache }: {
           ? <img src={contact.avatar_url} alt={convName} className="w-11 h-11 rounded-full object-cover flex-shrink-0" onError={() => {
               setAvatarFailed(true);
               const ownerId = msg.owner_zalo_id;
-              if (ownerId) {
+              if (ownerId && contact?.channel === 'facebook') {
                 ipc.fb.refreshContactAvatar({ accountId: ownerId, userId: msg.thread_id })
                   .then(res => { if (res.success && res.avatarUrl) setAvatarFailed(false); })
                   .catch(() => {});

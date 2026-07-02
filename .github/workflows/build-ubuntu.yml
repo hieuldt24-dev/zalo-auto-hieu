@@ -1,4 +1,4 @@
-# ─── Build Deplao cho Ubuntu (Linux) ─────────────────────────────────────────
+# ─── Build ZaloAuto cho Ubuntu (Linux) ────────────────────────────────────────
 # Chạy trên ubuntu-latest runner (GitHub Actions).
 # Sinh ra .AppImage + .deb cho x64.
 #
@@ -52,12 +52,6 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: 🟢 Setup Go 1.x
-        uses: actions/setup-go@v5
-        with:
-          go-version: 'stable'
-          cache: false  # don't cache Go modules — meta clone is side-effect
-
       - name: 📦 Install system dependencies
         run: |
           sudo apt-get update -qq
@@ -68,9 +62,6 @@ jobs:
 
       - name: 📦 Install npm dependencies
         run: npm ci --legacy-peer-deps
-
-      - name: 🏗️ Build E2EE bridge (Go)
-        run: npm run build:bridge-e2ee
 
       - name: 🏗️ Compile TypeScript (electron)
         run: npx tsc -p tsconfig.electron.prod.json
@@ -103,9 +94,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          repository: babyvibe/deplao-builder
+          repository: huyhoang171/zalo-auto
           tag_name: ${{ steps.get_tag.outputs.tag }}
-          name: "Deplao ${{ steps.get_tag.outputs.tag }}"
+          name: "ZaloAuto ${{ steps.get_tag.outputs.tag }}"
           files: |
             dist-electron-build/*.AppImage
             dist-electron-build/*.deb
@@ -116,7 +107,7 @@ jobs:
           fail_on_unmatched_files: false
 
       # ─── File sau khi publish ──────────────────────────────────────────────
-      # Xem release tại: https://github.com/babyvibe/deplao-builder/releases
+      # Xem release tại: https://github.com/huyhoang171/zalo-auto/releases
       # Link tải cố định:
-      #   https://github.com/babyvibe/deplao-builder/releases/latest/download/Deplao-{version}.AppImage
-      #   https://github.com/babyvibe/deplao-builder/releases/latest/download/Deplao_{version}_amd64.deb
+      #   https://github.com/huyhoang171/zalo-auto/releases/latest/download/ZaloAuto-{version}.AppImage
+      #   https://github.com/huyhoang171/zalo-auto/releases/latest/download/ZaloAuto_{version}_amd64.deb

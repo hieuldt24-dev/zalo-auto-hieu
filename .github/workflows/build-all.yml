@@ -1,4 +1,4 @@
-# ─── Build Deplao — Windows + macOS cùng lúc ─────────────────────────────────
+# ─── Build ZaloAuto — Windows + macOS cùng lúc ───────────────────────────────
 # Workflow tổng hợp: trigger cả 2 job song song, publish lên cùng 1 Release tag
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -102,9 +102,9 @@ jobs:
         if: needs.resolve-tag.outputs.should_publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          repository: babyvibe/deplao-builder
+          repository: huyhoang171/zalo-auto
           tag_name: ${{ needs.resolve-tag.outputs.tag }}
-          name: "Deplao ${{ needs.resolve-tag.outputs.tag }}"
+          name: "ZaloAuto ${{ needs.resolve-tag.outputs.tag }}"
           files: |
             dist-electron-build/*.exe
             dist-electron-build/*.blockmap
@@ -152,9 +152,9 @@ jobs:
         if: needs.resolve-tag.outputs.should_publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          repository: babyvibe/deplao-builder
+          repository: huyhoang171/zalo-auto
           tag_name: ${{ needs.resolve-tag.outputs.tag }}
-          name: "Deplao ${{ needs.resolve-tag.outputs.tag }}"
+          name: "ZaloAuto ${{ needs.resolve-tag.outputs.tag }}"
           files: |
             dist-electron-build/*.dmg
             dist-electron-build/*.blockmap
@@ -183,12 +183,6 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: 🟢 Setup Go 1.x
-        uses: actions/setup-go@v5
-        with:
-          go-version: 'stable'
-          cache: false
-
       - name: 📦 Install system dependencies
         run: |
           sudo apt-get update -qq
@@ -199,9 +193,6 @@ jobs:
 
       - name: 📦 Install npm dependencies
         run: npm ci --legacy-peer-deps
-
-      - name: 🏗️ Build E2EE bridge (Go)
-        run: npm run build:bridge-e2ee
 
       - name: 🏗️ Compile TypeScript (electron)
         run: npx tsc -p tsconfig.electron.prod.json
@@ -219,9 +210,9 @@ jobs:
         if: needs.resolve-tag.outputs.should_publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          repository: babyvibe/deplao-builder
+          repository: huyhoang171/zalo-auto
           tag_name: ${{ needs.resolve-tag.outputs.tag }}
-          name: "Deplao ${{ needs.resolve-tag.outputs.tag }}"
+          name: "ZaloAuto ${{ needs.resolve-tag.outputs.tag }}"
           files: |
             dist-electron-build/*.AppImage
             dist-electron-build/*.deb

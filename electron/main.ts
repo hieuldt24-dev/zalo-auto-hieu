@@ -95,20 +95,20 @@ app.commandLine.appendSwitch('lang', 'vi-VN');
 app.commandLine.appendSwitch('accept-lang', 'vi-VN,vi;q=0.9');
 
 // Đặt tên app (hiện trên taskbar, tray, macOS dock)
-app.setName('Deplao');
+app.setName('ZaloAuto');
 
 // Windows: đặt AppUserModelId để taskbar/notification hiển thị đúng icon & tên
 // Dev: AUMID unique mỗi lần chạy → Windows tạo icon cache mới → hiện đúng icon
 // Production: AUMID cố định (khớp appId electron-builder, exe đã embed icon qua afterPack)
 if (process.platform === 'win32') {
-  app.setAppUserModelId(isDev ? `com.Deplao.dev.${Date.now()}` : 'com.Deplao.app');
+  app.setAppUserModelId(isDev ? `com.zaloauto.dev.${Date.now()}` : 'com.zaloauto.app');
 }
 
 // ─── Register custom protocol BEFORE app ready (required by Electron) ─────────
 // local-media://abs-path  →  serve file from absolute path on disk
 // Usage in renderer: local-media:///D:/path/to/file.jpg
 //
-// deplao://openChat?accountId=xxx&threadId=yyy&threadType=0&channel=zalo
+// zaloauto://openChat?accountId=xxx&threadId=yyy&threadType=0&channel=zalo
 //   → deep link: mở app + active đúng hội thoại
 protocol.registerSchemesAsPrivileged([
   {
@@ -122,7 +122,7 @@ protocol.registerSchemesAsPrivileged([
     },
   },
   {
-    scheme: 'deplao',
+    scheme: 'zaloauto',
     privileges: {
       secure: true,
       bypassCSP: true,
@@ -159,7 +159,7 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    title: 'Deplao',
+    title: 'ZaloAuto',
     // Windows: frameless → custom title bar
     // macOS: hiddenInset → ẩn title bar, giữ traffic light buttons
     frame: isMac,
@@ -323,7 +323,7 @@ function createWindow() {
     }
 
     // Parse deep link URL từ command line (Windows protocol handler)
-    const deepLinkUrl = argv.find((arg: string) => arg.startsWith('deplao://'));
+    const deepLinkUrl = argv.find((arg: string) => arg.startsWith('zaloauto://'));
     if (deepLinkUrl) {
       handleDeepLink(deepLinkUrl);
     }
@@ -331,7 +331,7 @@ function createWindow() {
 
   // macOS: open-url event khi click deep link
   app.on('open-url', (_event, url) => {
-    if (url.startsWith('deplao://')) {
+    if (url.startsWith('zaloauto://')) {
       handleDeepLink(url);
     }
   });
@@ -356,7 +356,7 @@ function createTray() {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Mở Deplao',
+      label: 'Mở ZaloAuto',
       click: () => { mainWindow?.show(); mainWindow?.focus(); },
     },
     { type: 'separator' },
@@ -371,7 +371,7 @@ function createTray() {
     },
   ]);
 
-  tray.setToolTip('Deplao');
+  tray.setToolTip('ZaloAuto');
   tray.setContextMenu(contextMenu);
 
   // Double-click tray → mở app
@@ -391,7 +391,7 @@ function createTray() {
 function showTrayNotification() {
   if (!Notification.isSupported()) return;
   const notif = new Notification({
-    title: 'Deplao đang chạy ngầm',
+    title: 'ZaloAuto đang chạy ngầm',
     body: 'Ứng dụng vẫn đang hoạt động và nhận tin nhắn bình thường. Nhấn vào biểu tượng tray để mở lại.',
     silent: false,
   });
@@ -496,7 +496,7 @@ function registerWindowControls() {
             tray?.setImage(cachedDotIcon);
           }
         }
-        tray?.setToolTip(`Deplao — ${count} tin chưa đọc`);
+        tray?.setToolTip(`ZaloAuto — ${count} tin chưa đọc`);
       } else {
         if (currentIconIsDot) {
           currentIconIsDot = false;
@@ -505,7 +505,7 @@ function registerWindowControls() {
             tray?.setImage(cachedNormalIcon);
           }
         }
-        tray?.setToolTip('Deplao');
+        tray?.setToolTip('ZaloAuto');
       }
     } else {
       try { app.setBadgeCount(count > 0 ? count : 0); } catch {}
@@ -552,10 +552,10 @@ function registerWindowControls() {
 }
 
 /**
- * Xử lý deep link URL từ custom protocol deplao://
+ * Xử lý deep link URL từ custom protocol zaloauto://
  *
  * Định dạng:
- *   deplao://openChat?accountId=xxx&threadId=yyy&threadType=0&channel=zalo
+ *   zaloauto://openChat?accountId=xxx&threadId=yyy&threadType=0&channel=zalo
  *
  * Hỗ trợ thêm action mới bằng cách mở rộng switch(action) bên dưới.
  */
@@ -741,15 +741,14 @@ app.whenReady().then(async () => {
 
   loadIcons();
 
-  // ── Register deplao:// as default protocol client ─────────────────────
-  // Cho phép OS mở app khi click link deplao:// trong trình duyệt
+  // ── Register zaloauto:// as default protocol client ─────────────────────
+  // Cho phép OS mở app khi click link zaloauto:// trong trình duyệt
   //
   // ⚠️ Production: app đã đóng gói → setAsDefaultProtocolClient hoạt động đúng.
   // ⚠️ Development: KHÔNG gọi setAsDefaultProtocolClient — dùng manual reg script
-  //    (xem hướng dẫn trong agents/references/deep-link-feature.md)
   if (app.isPackaged) {
-    if (!app.isDefaultProtocolClient('deplao')) {
-      app.setAsDefaultProtocolClient('deplao');
+    if (!app.isDefaultProtocolClient('zaloauto')) {
+      app.setAsDefaultProtocolClient('zaloauto');
     }
   }
 
@@ -758,10 +757,10 @@ app.whenReady().then(async () => {
   registerWindowControls();
 
   // ── Handle deep link từ initial launch (first instance) ──────────
-  // Khi click deplao:// link lần đầu:
+  // Khi click zaloauto:// link lần đầu:
   //   - Production đúng: URL nằm ở process.argv[1] hoặc sau dấu `--`
   //   - Dev / sai config: Electron nhận URL ở argv[1] thay vì main script path
-  const initialDeepLink = process.argv.find((arg) => arg.startsWith('deplao://'));
+  const initialDeepLink = process.argv.find((arg) => arg.startsWith('zaloauto://'));
   if (initialDeepLink) {
     setTimeout(() => handleDeepLink(initialDeepLink), 3000);
   }

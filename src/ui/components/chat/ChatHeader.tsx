@@ -561,7 +561,7 @@ export default function ChatHeader() {
         onError={() => {
           setAvatarFailed(true);
           // Auto-refresh avatar cho Facebook contacts (CDN hết hạn → 403)
-          if (activeAccountId && activeThreadId && (/^\d+$/.test(activeThreadId) || contact?.channel === 'facebook')) {
+          if (activeAccountId && activeThreadId && contact?.channel === 'facebook') {
             ipc.fb.refreshContactAvatar({ accountId: activeAccountId, userId: activeThreadId })
               .then(res => {
                 if (res.success && res.avatarUrl) {

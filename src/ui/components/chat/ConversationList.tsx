@@ -1952,7 +1952,7 @@ export default function ConversationList() {
                       setFailedAvatars(prev => new Set(prev).add(contact.contact_id));
                       // Auto-refresh avatar cho Facebook contacts (CDN hết hạn → 403)
                       const ownerId = contact.owner_zalo_id || activeAccountId;
-                      if (ownerId && (contact.channel === 'facebook' || /^\d+$/.test(ownerId))) {
+                      if (ownerId && contact.channel === 'facebook') {
                         ipc.fb.refreshContactAvatar({ accountId: ownerId, userId: contact.contact_id })
                           .then(res => {
                             if (res.success && res.avatarUrl) {

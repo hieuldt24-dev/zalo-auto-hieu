@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ipc from '@/lib/ipc';
 
-const SUPPORT_GITHUB_URL = 'https://github.com/babyvibe/deplao-builder';
+const SUPPORT_GITHUB_URL = 'https://github.com/huyhoang171/zalo-auto';
 import { useAppStore, FONT_SCALE_MIN, FONT_SCALE_MAX, FONT_SCALE_STEP } from '@/store/appStore';
 import { useAccountStore } from '@/store/accountStore';
 import { useUpdateStore } from '@/store/updateStore';
@@ -160,7 +160,7 @@ export default function TopBar() {
       style={{ WebkitAppRegion: 'drag' } as any}
     >
       <div className="flex items-center gap-2 px-3" style={{ WebkitAppRegion: 'no-drag' } as any}>
-        <span className="text-blue-400 font-bold text-sm">Deplao</span>
+        <span className="text-blue-400 font-bold text-sm">ZaloAuto</span>
         <span className="text-gray-500 text-xs">v{APP_VERSION}</span>
 
         {/* Workspace switcher — only shows when multiple workspaces exist */}
@@ -240,7 +240,7 @@ export default function TopBar() {
                   <p className="text-[10px] text-gray-500 mt-0.5">Chọn bản phù hợp với máy Mac của bạn</p>
                 </div>
                 <a
-                  href={`https://deplaoapp.com/file/Deplao-${updateInfo.version}-arm64.dmg`}
+                  href={`https://github.com/huyhoang171/zalo-auto/releases/latest/download/ZaloAuto-${updateInfo.version}-arm64.dmg`}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => setMacDropdownOpen(false)}
@@ -253,7 +253,7 @@ export default function TopBar() {
                   </div>
                 </a>
                 <a
-                  href={`https://deplaoapp.com/file/Deplao-${updateInfo.version}.dmg`}
+                  href={`https://github.com/huyhoang171/zalo-auto/releases/latest/download/ZaloAuto-${updateInfo.version}.dmg`}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => setMacDropdownOpen(false)}
@@ -311,7 +311,7 @@ export default function TopBar() {
         <button
           onClick={() => ipc.shell?.openExternal(SUPPORT_GITHUB_URL)}
           className="w-9 h-9 flex items-center justify-center text-gray-400 hover:bg-gray-700 hover:text-yellow-400 transition-colors relative group/gh"
-          title={"⭐ Star Deplao trên GitHub\nDự án mã nguồn mở — Ủng hộ team bằng cách ghé thăm và thả sao nhé!"}
+          title={"⭐ Star ZaloAuto trên GitHub\nDự án mã nguồn mở — Ủng hộ team bằng cách ghé thăm và thả sao nhé!"}
         >
           <span className="relative">
             {/* GitHub icon */}

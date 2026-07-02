@@ -1795,7 +1795,7 @@ export default function ChatWindow() {
                               onError={() => {
                                 setFailedMsgAvatars(prev => new Set(prev).add(msg.sender_id));
                                 const contact = getContact(msg.sender_id);
-                                if (activeAccountId && (contact?.channel === 'facebook' || /^\d+$/.test(msg.sender_id)) && !avatarRefreshAttempted.current.has(msg.sender_id)) {
+                                if (activeAccountId && contact?.channel === 'facebook' && !avatarRefreshAttempted.current.has(msg.sender_id)) {
                                   avatarRefreshAttempted.current.add(msg.sender_id);
                                   ipc.fb.refreshContactAvatar({ accountId: activeAccountId, userId: msg.sender_id })
                                     .then(res => {
@@ -1942,7 +1942,7 @@ export default function ChatWindow() {
                               onError={() => {
                                 setFailedMsgAvatars(prev => new Set(prev).add(msg.sender_id));
                                 const contact = getContact(msg.sender_id);
-                                if (activeAccountId && (contact?.channel === 'facebook' || /^\d+$/.test(msg.sender_id)) && !avatarRefreshAttempted.current.has(msg.sender_id)) {
+                                if (activeAccountId && contact?.channel === 'facebook' && !avatarRefreshAttempted.current.has(msg.sender_id)) {
                                   avatarRefreshAttempted.current.add(msg.sender_id);
                                   ipc.fb.refreshContactAvatar({ accountId: activeAccountId, userId: msg.sender_id })
                                     .then(res => {
