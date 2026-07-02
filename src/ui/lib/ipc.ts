@@ -415,21 +415,7 @@ declare global {
         analyticsResponseDist: (sinceTs: number, untilTs: number) => Promise<{ success: boolean; data: any[]; error?: string }>;
         analyticsHourlyActivity: (sinceTs: number, untilTs: number) => Promise<{ success: boolean; data: any[]; error?: string }>;
       };
-      workspace: {
-        list: () => Promise<{ success: boolean; workspaces: any[]; error?: string }>;
-        getActive: () => Promise<{ success: boolean; workspace: any; error?: string }>;
-        create: (params: { name: string; type: 'local' | 'remote'; icon?: string; bossUrl?: string; token?: string; employeeId?: string; employeeName?: string; employeeUsername?: string; autoConnect?: boolean; relayPort?: number }) => Promise<{ success: boolean; workspace?: any; error?: string }>;
-        update: (id: string, updates: any) => Promise<{ success: boolean; error?: string }>;
-        delete: (id: string) => Promise<{ success: boolean; error?: string }>;
-        switch: (id: string) => Promise<{ success: boolean; workspace?: any; error?: string }>;
-        isMulti: () => Promise<{ isMulti: boolean }>;
-        getDbPath: (id: string) => Promise<{ success: boolean; dbPath?: string; error?: string }>;
-        connectRemote: (id: string, bossUrl: string, token: string) => Promise<{ success: boolean; error?: string }>;
-        disconnectRemote: (id: string) => Promise<{ success: boolean; error?: string }>;
-        getConnectionStatus: (id: string) => Promise<{ success: boolean; connected: boolean; bossUrl: string; latency: number; error?: string }>;
-        getAllStatuses: () => Promise<{ success: boolean; statuses: Record<string, { connected: boolean; bossUrl: string; latency: number }>; error?: string }>;
-        loginRemote: (bossUrl: string, username: string, password: string) => Promise<{ success: boolean; token?: string; employee?: any; error?: string }>;
-      };
+
       relay: {
         startServer: (port?: number) => Promise<{ success: boolean; port?: number; error?: string }>;
         stopServer: () => Promise<{ success: boolean; error?: string }>;
@@ -665,7 +651,6 @@ export const ipc = {
   ai: window.electronAPI?.ai,
   tunnel: window.electronAPI?.tunnel,
   employee: window.electronAPI?.employee,
-  workspace: window.electronAPI?.workspace,
   sync: window.electronAPI?.sync,
   relay: window.electronAPI?.relay,
   fb: window.electronAPI?.fb,

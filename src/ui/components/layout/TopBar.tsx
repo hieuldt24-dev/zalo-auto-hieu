@@ -5,7 +5,6 @@ import { useAccountStore } from '@/store/accountStore';
 import { useUpdateStore } from '@/store/updateStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { useChatStore } from '@/store/chatStore';
-import WorkspaceSwitcher from '@/components/common/WorkspaceSwitcher';
 
 
 const APP_VERSION: string = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '?';
@@ -160,9 +159,6 @@ export default function TopBar() {
       <div className="flex items-center gap-2 px-3" style={{ WebkitAppRegion: 'no-drag' } as any}>
         <span className="text-blue-400 font-bold text-sm">ZaloAuto</span>
         <span className="text-gray-500 text-xs">v{APP_VERSION}</span>
-
-        {/* Workspace switcher — only shows when multiple workspaces exist */}
-        <WorkspaceSwitcher />
 
         {/* Employee mode indicator */}
         {empMode === 'employee' && currentEmployee && (

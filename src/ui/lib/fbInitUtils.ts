@@ -9,7 +9,7 @@
  */
 
 import ipc from '@/lib/ipc';
-import { useWorkspaceStore } from '@/store/workspaceStore';
+
 import { useChatStore } from '@/store/chatStore';
 
 // ── Public types (compatible with zaloInitUtils) ──────────────────────────────

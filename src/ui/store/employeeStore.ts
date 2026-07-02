@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import ipc from '@/lib/ipc';
-import { useWorkspaceStore } from './workspaceStore';
+
 
 export type AppMode = 'standalone' | 'boss' | 'employee';
 

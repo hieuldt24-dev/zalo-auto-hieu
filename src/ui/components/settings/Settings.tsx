@@ -7,13 +7,12 @@ import { playNotificationSound, requestNotificationPermission, showDesktopNotifi
 import { showConfirm } from '../common/ConfirmDialog';
 import { extractApiError } from '@/utils/apiError';
 import ConversationSettings from './ConversationSettings';
-import WorkspaceSettings from './WorkspaceSettings';
 import ProxySettings from './ProxySettings';
 import LockScreenSettings from './LockScreenSettings';
 import AccountSettings from './AccountSettings';
 import { loadSeenTabs, markTabSeen, SETTINGS_WATCHLIST } from '@/utils/settingsSeenTabs';
 
-type SettingsTab = 'notifications' | 'accounts' | 'storage' | 'conversation' | 'employees' | 'workspace' | 'appearance' | 'proxy' | 'security';
+type SettingsTab = 'notifications' | 'accounts' | 'storage' | 'conversation' | 'employees' | 'appearance' | 'proxy' | 'security';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('conversation');
@@ -43,7 +42,7 @@ export default function Settings() {
 
   // Lắng nghe sự kiện điều hướng từ các màn hình khác
   useEffect(() => {
-    const VALID_TABS: SettingsTab[] = ['notifications', 'accounts', 'storage', 'conversation', 'workspace', 'appearance', 'proxy', 'security'];
+    const VALID_TABS: SettingsTab[] = ['notifications', 'accounts', 'storage', 'conversation', 'appearance', 'proxy', 'security'];
     const handler = (e: Event) => {
       const { tab } = (e as CustomEvent).detail || {};
       if (tab && VALID_TABS.includes(tab as SettingsTab)) setActiveTab(tab as SettingsTab);
@@ -142,7 +141,6 @@ export default function Settings() {
     { id: 'accounts',      icon: '👤', label: 'Tài khoản', requiredPerm: 'settings_accounts' },
     { id: 'proxy',         icon: '🔒', label: 'Proxy' },
     { id: 'security',      icon: '🛡️', label: 'Bảo mật' },
-    { id: 'workspace',     icon: '🗂️', label: 'Workspace' },
     { id: 'storage',       icon: '📁', label: 'Lưu trữ' },
   ];
 
@@ -447,7 +445,6 @@ export default function Settings() {
 
         {/* ── Employees ── */}
         {activeTab === 'proxy' && <ProxySettings />}
-        {activeTab === 'workspace' && <WorkspaceSettings />}
 
       </div>
     </div>

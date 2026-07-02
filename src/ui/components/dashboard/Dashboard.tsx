@@ -2,11 +2,9 @@ import React, { useRef, useState } from 'react';
 import { useAccountStore } from '@/store/accountStore';
 import { useAppStore } from '@/store/appStore';
 import { useEmployeeStore } from '@/store/employeeStore';
-import { useWorkspaceStore } from '@/store/workspaceStore';
 import { useVisibleAccounts } from '@/hooks/useVisibleAccounts';
 import AccountCard from './AccountCard';
 import MergedInboxModal from './MergedInboxModal';
-import EmployeeLoginModal from './EmployeeLoginModal';
 import ipc from '@/lib/ipc';
 
 export default function Dashboard() {
@@ -18,14 +16,12 @@ export default function Dashboard() {
   const accounts = useVisibleAccounts();
   const [search, setSearch] = useState('');
   const [mergedModalOpen, setMergedModalOpen] = useState(false);
-  const [employeeLoginOpen, setEmployeeLoginOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const activeWs = useWorkspaceStore(s => s.activeWorkspace());
   const assignedAccounts = useEmployeeStore(s => s.assignedAccounts);
   const bossConnected = useEmployeeStore(s => s.bossConnected);
 
-  const isRemoteWs = activeWs?.type === 'remote' || empMode === 'employee';
-  const isEmployeeWorkspace = activeWs?.type === 'remote' && empMode === 'employee';
+  const isRemoteWs = empMode === 'employee';
+  const isEmployeeWorkspace = empMode === 'employee';
 
   const handleSyncFromBoss = async () => {
     if (syncing) return;
@@ -125,10 +121,10 @@ export default function Dashboard() {
               Thoát giả lập
             </button>
           </>
-        ) : activeWs?.type === 'remote' || empMode === 'employee' ? (
+        ) : empMode === 'employee' ? (
           <>
             <p className="text-lg font-medium text-gray-300">Chưa có trang nào được quản lý</p>
-            <p className="text-sm text-gray-500">Liên hệ BOSS để được gán tài khoản Zalo vào workspace này.</p>
+            <p className="text-sm text-gray-500">Liên hệ BOSS để được gán tài khoản Zalo.</p>
             <div className="flex items-center gap-3 mt-2">
               {isRemoteWs && (
               <button
@@ -162,13 +158,6 @@ export default function Dashboard() {
             </div>
           </>
         )}
-        <button
-            onClick={() => setEmployeeLoginOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600 transition-colors"
-        >
-          👤 Đăng nhập dành cho nhân viên
-        </button>
-        {employeeLoginOpen && <EmployeeLoginModal onClose={() => setEmployeeLoginOpen(false)} />}
       </div>
     );
   }
@@ -274,49 +263,6 @@ export default function Dashboard() {
               </div>
             )
           )}
-
-          {/* Thêm workspace — always visible */}
-          <div className="relative group">
-            <button
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('nav:view', { detail: { view: 'settings' } }));
-                setTimeout(() => window.dispatchEvent(new CustomEvent('nav:settings', { detail: { tab: 'workspace' } })), 80);
-              }}
-              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <rect x="3" y="3" width="18" height="18" rx="3"/>
-                <line x1="12" y1="8" x2="12" y2="16"/>
-                <line x1="8" y1="12" x2="16" y2="12"/>
-              </svg>
-              Thêm workspace
-            </button>
-            {/* Tooltip */}
-            <div className="absolute top-full right-0 mt-2 w-72 bg-gray-800 border border-gray-600/60 rounded-xl shadow-2xl p-3 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none">
-              <div className="flex items-start gap-2 mb-2">
-                <span className="text-lg">🏠</span>
-                <div>
-                  <p className="text-xs font-semibold text-gray-200">Tạo workspace mới</p>
-                  <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
-                    Đăng nhập với tư cách <span className="text-amber-400 font-medium">Boss</span> hoặc <span className="text-sky-400 font-medium">Nhân viên</span>.
-                    Dữ liệu và database sẽ <span className="text-red-400 font-medium">độc lập</span> với workspace hiện tại.
-                  </p>
-                </div>
-              </div>
-              <div className="border-t border-gray-700 pt-2 mt-2 space-y-1.5">
-                <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                  <span className="w-4 h-4 rounded bg-purple-900/40 flex items-center justify-center text-purple-400">🏠</span>
-                  <span><span className="text-gray-300">Boss (Local)</span> — Quản lý trực tiếp, lưu DB trên máy</span>
-                </div>
-                <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                  <span className="w-4 h-4 rounded bg-blue-900/40 flex items-center justify-center text-blue-400">👤</span>
-                  <span><span className="text-gray-300">Nhân viên (Remote)</span> — Kết nối tới máy Boss từ xa</span>
-                </div>
-              </div>
-              {/* Arrow */}
-              <div className="absolute -top-1.5 right-4 w-3 h-3 bg-gray-800 border-l border-t border-gray-600/60 rotate-45" />
-            </div>
-          </div>
 
           {/* Search */}
           <div className="relative">

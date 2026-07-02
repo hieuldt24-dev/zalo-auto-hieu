@@ -32,69 +32,14 @@ import { playNotificationSound, showDesktopNotification } from './utils/Notifica
 import { checkAccountInitNeeds } from './lib/zaloInitUtils';
 import AddAccountModal from "@/components/auth/AddAccountModal";
 import EmployeeConnectionBanner from "@/components/common/EmployeeConnectionBanner";
-import { useWorkspaceStore } from './store/workspaceStore';
+
 import { useEmployeeStore } from './store/employeeStore';
 import LockScreen from './components/auth/LockScreen';
 
 const HEALTH_CHECK_INTERVAL_MS = 60 * 1000; // 1 phút
 const NETWORK_RECONNECT_COOLDOWN_MS = 15 * 1000; // 15 giây
 
-type WorkspacePermissionCache = { module: string; can_access: boolean };
-type WorkspaceAccountCache = {
-  zalo_id: string;
-  full_name: string;
-  avatar_url: string;
-  phone?: string;
-  is_business?: number;
-  is_active?: number;
-  listener_active?: number;
-};
 
-function buildPermissionsMap(permissions?: WorkspacePermissionCache[]): Record<string, boolean> {
-  const result: Record<string, boolean> = {};
-  for (const permission of (permissions || [])) {
-    result[permission.module] = !!permission.can_access;
-  }
-  return result;
-}
-
-function normalizeWorkspaceAccounts(accounts?: WorkspaceAccountCache[]) {
-  return (accounts || []).map((account: any) => {
-    const listenerState = account.listener_active ?? account.listenerActive ?? (account.isConnected ? 1 : 0);
-    const fullName = account.full_name || account.display_name || account.zalo_id;
-    return {
-    zalo_id: account.zalo_id,
-    display_name: fullName,
-    full_name: fullName,
-    avatar_url: account.avatar_url || '',
-    phone: account.phone || '',
-    is_business: account.is_business || 0,
-    imei: '',
-    user_agent: '',
-    cookies: '',
-    is_active: account.is_active ?? 1,
-    created_at: '',
-    listenerActive: !!listenerState,
-    isConnected: !!listenerState,
-    isOnline: !!listenerState,
-  };
-  });
-}
-
-function buildCurrentEmployeeFromWorkspace(ws: any) {
-  if (!ws || ws.type !== 'remote') return null;
-  const cachedEmployee = ws.cachedEmployeesData?.find((employee: any) => employee.employee_id === (ws.employeeId || ''));
-  return {
-    employee_id: ws.employeeId || '',
-    username: cachedEmployee?.username || ws.employeeUsername || '',
-    display_name: cachedEmployee?.display_name || ws.employeeName || ws.name || 'Nhân viên',
-    avatar_url: cachedEmployee?.avatar_url || '',
-    role: 'employee' as const,
-    is_active: cachedEmployee?.is_active ?? 1,
-    permissions: cachedEmployee?.permissions || ws.cachedPermissions || [],
-    assigned_accounts: cachedEmployee?.assigned_accounts || ws.cachedAssignedAccounts || [],
-  };
-}
 
 export default function App() {
   const {
@@ -312,9 +257,8 @@ export default function App() {
   }, []);
 
   const reconnectAfterNetworkRestore = useCallback(async () => {
-    // Skip for employee (remote) workspace — boss owns Zalo connections
-    const netActiveWs = await ipc.workspace?.getActive?.().then((r: any) => r?.workspace).catch(() => null);
-    if (netActiveWs?.type === 'remote') return;
+    // Skip for employee (remote) mode — boss owns Zalo connections
+    if (useEmployeeStore.getState().mode === 'employee') return;
 
     const currentAccounts = useAccountStore.getState().accounts.filter(a => (a.channel || 'zalo') === 'zalo');
     if (!currentAccounts.length) return;
@@ -442,355 +386,7 @@ export default function App() {
     }
   }, [activeAccountId, view]);
 
-  // ─── Workspace switch: reload all data when workspace changes ─────────────
-  useEffect(() => {
-    const unsub = window.electronAPI?.on('workspace:switched', async (data: any) => {
-      if (!data?.workspace) {
-        useWorkspaceStore.getState().setIsSwitching(false);
-        return;
-      }
-      const switchTimeout = setTimeout(() => {
-        console.warn('[App] workspace:switched handler timeout — forcing isSwitching=false');
-        useWorkspaceStore.getState().setIsSwitching(false);
-      }, 15000);
-      try {
-      // Use workspace from event payload directly — no extra IPC roundtrip
-      const ws = data.workspace;
-      console.log(`[App] Workspace switched to: ${ws.name} (${ws.id}) type=${ws.type}`);
 
-      // Update workspace store FIRST — so all subsequent checks use the correct activeWorkspaceId
-      useWorkspaceStore.getState().setActiveWorkspaceId(ws.id);
-
-      // ── Clear init-checked set so account init re-runs for the new workspace ──
-      initCheckedRef.current.clear();
-
-      // ── Clear ALL stale state from the previous workspace ──────────────────
-      useChatStore.getState().resetForWorkspaceSwitch();
-      useAccountStore.getState().setActiveAccount(null);
-
-      const appState = useAppStore.getState();
-      if (appState.mergedInboxMode) appState.exitMergedInbox();
-      useAppStore.setState({ groupInfoCache: {} } as any);
-
-      // ── Setup employee mode or clear it ────────────────────────
-      const empStore = useEmployeeStore.getState();
-      // Always clear preview employee so permissions don't carry over between workspaces
-      empStore.setPreviewEmployeeId?.(null);
-      if (ws.type === 'remote') {
-        empStore.reset();
-        empStore.setMode('employee');
-        empStore.setCurrentEmployee(buildCurrentEmployeeFromWorkspace(ws));
-        empStore.setBossUrl(ws.bossUrl || '');
-        empStore.setPermissions(buildPermissionsMap(ws.cachedPermissions));
-        empStore.setAssignedAccounts(ws.cachedAssignedAccounts || []);
-        empStore.setEmployees(ws.cachedEmployeesData || []);
-
-        // Use snapshot from event payload (merged by main process) — no IPC needed
-        const snapshot = ws._snapshot;
-        if (snapshot) {
-          empStore.setBossConnected(true);
-          if (snapshot.assignedAccounts?.length) empStore.setAssignedAccounts(snapshot.assignedAccounts);
-          if (snapshot.permissions?.length) empStore.setPermissions(buildPermissionsMap(snapshot.permissions));
-          if (snapshot.employeesData) empStore.setEmployees(snapshot.employeesData);
-        } else {
-          empStore.setBossConnected(!!ws._connected);
-        }
-      } else {
-        empStore.reset();
-      }
-
-      // Reset stores to reflect new workspace data
-      try {
-        let nextAccounts: any[];
-        if (ws.type === 'remote') {
-          // Remote: use snapshot or cached accounts — no DB query needed
-          const snapshotAccounts = ws._snapshot?.accountsData;
-          nextAccounts = normalizeWorkspaceAccounts(
-            snapshotAccounts?.length ? snapshotAccounts : (ws.cachedAccountsData || [])
-          );
-        } else {
-          // Local: load from DB
-          const accountsRes = await ipc.login?.getAccounts();
-          nextAccounts = accountsRes?.accounts || [];
-        }
-
-        setAccounts(nextAccounts);
-
-        // ── Auto-select first page if no active account ─────────────
-        if (nextAccounts.length > 0) {
-          useAccountStore.getState().setActiveAccount(nextAccounts[0].zalo_id);
-        }
-
-        // Reload contacts from local DB (non-blocking, with timeout)
-        for (const acc of nextAccounts) {
-          try {
-            const contactsRes = await Promise.race([
-              ipc.db?.getContacts(acc.zalo_id),
-              new Promise(r => setTimeout(() => r(null), 5000)),
-            ]) as any;
-            if (contactsRes?.contacts) {
-              setContacts(acc.zalo_id, contactsRes.contacts);
-            }
-          } catch {}
-        }
-
-        // Load flags (non-blocking, with timeout)
-        const { loadFlags } = useAppStore.getState();
-        for (const acc of nextAccounts) {
-          try {
-            await Promise.race([
-              loadFlags(acc.zalo_id),
-              new Promise(r => setTimeout(r, 3000)),
-            ]);
-          } catch {}
-        }
-
-        ipc.app?.setBadge(getFilteredUnreadCount());
-      } catch (err) {
-        console.error('[App] Workspace switch reload error:', err);
-      }
-
-      // Clear workspace switching state
-      clearTimeout(switchTimeout);
-      useWorkspaceStore.getState().setIsSwitching(false);
-      } catch (outerErr) {
-        console.error('[App] workspace:switched outer error:', outerErr);
-        clearTimeout(switchTimeout);
-        useWorkspaceStore.getState().setIsSwitching(false);
-      }
-    });
-    return () => unsub?.();
-  }, [setAccounts, setContacts]);
-
-  // ─── Handle relay:initialState forwarded from SocketConnectionManager ────────
-  // Fired when employee successfully connects to boss — contains permissions + assignedAccounts.
-  useEffect(() => {
-    const unsub = window.electronAPI?.on('workspace:initialState', async (data: any) => {
-      if (!data?.workspaceId) return;
-      console.log(`[App] workspace:initialState received:`, {
-        workspaceId: data.workspaceId,
-        assignedAccounts: data.assignedAccounts,
-        accountsDataCount: data.accountsData?.length ?? 0,
-        accountsData: data.accountsData,
-      });
-      const storeActiveWorkspaceId = useWorkspaceStore.getState().activeWorkspaceId;
-      const activeWorkspaceId = storeActiveWorkspaceId
-        || (await ipc.workspace?.getActive?.().then((res: any) => res?.workspace?.id).catch(() => ''));
-      const cachedAccounts = normalizeWorkspaceAccounts(data.accountsData || []);
-      const permissions = data.permissions || [];
-      const assignedAccounts = data.assignedAccounts || [];
-      const employeesData = data.employeesData || [];
-
-      // Always persist workspace-specific cache, even for background remote workspaces.
-      const cacheUpdateResult = await ipc.workspace?.update(data.workspaceId, {
-        cachedPermissions: permissions,
-        cachedAssignedAccounts: assignedAccounts,
-        cachedErpRole: data.erpRole || '',
-        cachedErpExtraJson: data.erpExtraJson || '',
-        cachedEmployeesData: employeesData,
-        cachedAccountsData: cachedAccounts,
-      }).catch(() => null);
-      useWorkspaceStore.getState().setWorkspaces(
-        useWorkspaceStore.getState().workspaces.map((workspace: any) => workspace.id === data.workspaceId
-          ? {
-              ...workspace,
-              cachedPermissions: permissions,
-              cachedAssignedAccounts: assignedAccounts,
-              cachedErpRole: data.erpRole || '',
-              cachedErpExtraJson: data.erpExtraJson || '',
-              cachedEmployeesData: employeesData,
-              cachedAccountsData: cachedAccounts,
-            }
-          : workspace)
-      );
-      console.log('[App] workspace:initialState cache write', {
-        workspaceId: data.workspaceId,
-        success: !!cacheUpdateResult?.success,
-      });
-
-      if (data.workspaceId !== activeWorkspaceId) {
-        return;
-      }
-
-      const empStore = useEmployeeStore.getState();
-
-      // Ensure employee mode is set when receiving initialState
-      if (empStore.mode !== 'employee') {
-        empStore.reset();
-        empStore.setMode('employee');
-      }
-      empStore.setCurrentEmployee(buildCurrentEmployeeFromWorkspace(useWorkspaceStore.getState().activeWorkspace()));
-
-      // Build permissions map from array
-      const permsMap = buildPermissionsMap(permissions);
-      empStore.setPermissions(permsMap);
-      empStore.setAssignedAccounts(assignedAccounts);
-      empStore.setBossConnected(true);
-      empStore.setEmployees(employeesData);
-      empStore.setCurrentEmployee(buildCurrentEmployeeFromWorkspace({
-        ...useWorkspaceStore.getState().activeWorkspace(),
-        cachedPermissions: permissions,
-        cachedAssignedAccounts: assignedAccounts,
-        cachedEmployeesData: employeesData,
-      }));
-
-      // Populate account store with account data from boss for the active workspace only
-      if (cachedAccounts.length > 0) {
-        setAccounts(cachedAccounts as any);
-        console.log(`[App] Accounts set from initialState: ${cachedAccounts.length} accounts`, cachedAccounts.map(a => ({ zalo_id: a.zalo_id, full_name: a.full_name })));
-      } else {
-        setAccounts([]);
-        console.log(`[App] No accountsData in initialState`);
-      }
-
-      // ── Auto full-sync on first connection (no previous sync) ─────────────
-      const syncAccountIds = assignedAccounts;
-      if (syncAccountIds.length > 0) {
-        try {
-          const syncStatus = await ipc.sync?.getStatus();
-          if (!syncStatus?.lastSyncTs) {
-            // Retry up to 3 lần nếu full sync thất bại (timeout với 100k+ messages)
-            const maxRetries = 3;
-            const doSync = async (attempt: number) => {
-              try {
-                const res = await ipc.sync?.requestFullSync(syncAccountIds);
-                if (res?.success) {
-                  console.log(`[App] ✅ Full sync thành công (attempt ${attempt + 1})`);
-                } else if (attempt < maxRetries - 1) {
-                  console.warn(`[App] ⚠️ Full sync thất bại (attempt ${attempt + 1}): ${res?.error}. Retry sau 10s...`);
-                  await new Promise(r => setTimeout(r, 10000));
-                  return doSync(attempt + 1);
-                } else {
-                  console.error(`[App] ❌ Full sync thất bại sau ${maxRetries} lần: ${res?.error}`);
-                }
-              } catch (err) {
-                if (attempt < maxRetries - 1) {
-                  console.warn(`[App] ⚠️ Full sync exception (attempt ${attempt + 1}): ${err}. Retry sau 10s...`);
-                  await new Promise(r => setTimeout(r, 10000));
-                  return doSync(attempt + 1);
-                } else {
-                  console.error(`[App] ❌ Full sync exception sau ${maxRetries} lần:`, err);
-                }
-              }
-            };
-            doSync(0);
-          }
-        } catch { /* ignore sync status check failure */ }
-      }
-    });
-    return () => unsub?.();
-  }, [setAccounts]);
-
-  // ─── Handle relay:accountAccessUpdate (boss changed employee assignments) ─────
-  useEffect(() => {
-    const unsub = window.electronAPI?.on('workspace:accountAccessUpdate', async (data: any) => {
-      if (!data?.workspaceId) return;
-
-      const assignedAccounts = data.assignedAccounts || [];
-      const cachedAccounts = normalizeWorkspaceAccounts(data.accountsData || []);
-
-      // Update workspace cache for both active and background remote workspaces.
-      const cacheUpdateResult = await ipc.workspace?.update(data.workspaceId, {
-        cachedAssignedAccounts: assignedAccounts,
-        cachedAccountsData: cachedAccounts,
-      }).catch(() => null);
-      useWorkspaceStore.getState().setWorkspaces(
-        useWorkspaceStore.getState().workspaces.map((workspace: any) => workspace.id === data.workspaceId
-          ? {
-              ...workspace,
-              cachedAssignedAccounts: assignedAccounts,
-              cachedAccountsData: cachedAccounts,
-            }
-          : workspace)
-      );
-      console.log('[App] workspace:accountAccessUpdate cache write', {
-        workspaceId: data.workspaceId,
-        success: !!cacheUpdateResult?.success,
-      });
-
-      const activeWorkspaceId = useWorkspaceStore.getState().activeWorkspaceId
-        || (await ipc.workspace?.getActive?.().then((res: any) => res?.workspace?.id).catch(() => ''));
-
-      if (data.workspaceId !== activeWorkspaceId) {
-        console.log('[App] workspace:accountAccessUpdate ignored for inactive workspace', {
-          workspaceId: data.workspaceId,
-          activeWorkspaceId,
-        });
-        return;
-      }
-
-      useEmployeeStore.getState().setAssignedAccounts(assignedAccounts);
-
-      // Update account store with new account data from boss for the active workspace only.
-      const assignedSet = new Set(assignedAccounts);
-      const nextAccounts = cachedAccounts.length > 0
-        ? cachedAccounts.filter(a => assignedSet.has(a.zalo_id))
-        : useAccountStore.getState().accounts.filter(a => assignedSet.has(a.zalo_id));
-
-      setAccounts(nextAccounts as any);
-    });
-    return () => unsub?.();
-  }, []);
-
-  // ─── Track remote workspace connection status ───────────
-  useEffect(() => {
-    const unsub = window.electronAPI?.on('workspace:connectionStatus', (data: any) => {
-      if (!data?.workspaceId) return;
-      useWorkspaceStore.getState().setConnectionStatus(data.workspaceId, {
-        connected: !!data.connected,
-        latency: data.latency ?? 0,
-      });
-      // Update employeeStore.bossConnected if this is the active workspace
-      const activeWsId = useWorkspaceStore.getState().activeWorkspaceId;
-      if (data.workspaceId === activeWsId) {
-        const empStore = useEmployeeStore.getState();
-        if (empStore.mode === 'employee') {
-          empStore.setBossConnected(!!data.connected);
-          if (data.latency !== undefined) empStore.setLatency(data.latency);
-        }
-      }
-    });
-    return () => unsub?.();
-  }, []);
-
-  // ─── Handle sync completion — reload data after full/delta sync ────────────
-  useEffect(() => {
-    const unsub = window.electronAPI?.on('workspace:syncComplete', async (data: any) => {
-      if (!data?.workspaceId) return;
-      const activeWsId = useWorkspaceStore.getState().activeWorkspaceId;
-      if (data.workspaceId !== activeWsId) return;
-
-      console.log(`[App] workspace:syncComplete received: type=${data.syncType} workspace=${data.workspaceId}`);
-
-      // Reload contacts from DB for all assigned accounts
-      const empStore = useEmployeeStore.getState();
-      const accounts = empStore.assignedAccounts || [];
-      if (accounts.length > 0) {
-        for (const zaloId of accounts) {
-          try {
-            const contactsRes = await Promise.race([
-              ipc.db?.getContacts(zaloId),
-              new Promise(r => setTimeout(() => r(null), 5000)),
-            ]) as any;
-            if (contactsRes?.contacts) {
-              setContacts(zaloId, contactsRes.contacts);
-            }
-          } catch {}
-        }
-        // Reload flags
-        const { loadFlags } = useAppStore.getState();
-        for (const zaloId of accounts) {
-          try {
-            await Promise.race([
-              loadFlags(zaloId),
-              new Promise(r => setTimeout(r, 3000)),
-            ]);
-          } catch {}
-        }
-      }
-    });
-    return () => unsub?.();
-  }, [setContacts]);
 
   // ─── nav:view — navigate to a top-level view from other components ───────────
   useEffect(() => {
@@ -967,11 +563,10 @@ export default function App() {
           // Sync badge
           ipc.app?.setBadge(getFilteredUnreadCount());
 
-          // 3. Auto-reconnect saved Zalo accounts (ONLY for boss/local workspace)
-          // Employee (remote) workspace must NOT connect Zalo directly —
+          // 3. Auto-reconnect saved Zalo accounts (ONLY for boss/local mode)
+          // Employee (remote) mode must NOT connect Zalo directly —
           // boss owns all Zalo connections and relays events via SSE.
-          const initActiveWs = await ipc.workspace?.getActive?.().then((r: any) => r?.workspace).catch(() => null);
-          const isEmployeeMode = initActiveWs?.type === 'remote';
+          const isEmployeeMode = useEmployeeStore.getState().mode === 'employee';
           if (!isEmployeeMode) {
             for (const acc of accountsRes.accounts) {
               if ((acc.channel || 'zalo') !== 'zalo') continue; // Skip FB accounts
@@ -1018,35 +613,7 @@ export default function App() {
           }
         }
 
-        // ── Restore employee mode based on active workspace ─────────────────
-        try {
-          const activeWsRes = await ipc.workspace?.getActive();
-          const activeWs = activeWsRes?.workspace;
-          if (activeWs?.id) {
-            useWorkspaceStore.getState().setActiveWorkspaceId(activeWs.id);
-          }
-          if (activeWs?.type === 'remote') {
-            const empStore = useEmployeeStore.getState();
-            empStore.reset();
-            empStore.setMode('employee');
-            empStore.setCurrentEmployee(buildCurrentEmployeeFromWorkspace(activeWs));
-            empStore.setBossUrl(activeWs.bossUrl || '');
-            // Query actual connection status instead of hardcoding false
-            // (connectAutoWorkspaces may have already connected by the time init reaches here)
-            const connStatus = await ipc.workspace?.getConnectionStatus?.(activeWs.id).catch(() => null);
-            empStore.setBossConnected(!!connStatus?.connected);
-            if (connStatus?.latency !== undefined) empStore.setLatency(connStatus.latency);
-            // Load from cached data in workspace config (populated after first successful connection)
-            empStore.setPermissions(buildPermissionsMap(activeWs.cachedPermissions));
-            empStore.setAssignedAccounts(activeWs.cachedAssignedAccounts || []);
 
-            if (useAccountStore.getState().accounts.length === 0 && activeWs.cachedAccountsData?.length) {
-              setAccounts(normalizeWorkspaceAccounts(activeWs.cachedAccountsData) as any);
-            }
-
-          }
-          // If local workspace, mode stays as default (standalone/boss)
-        } catch { /* ignore */ }
       } catch (err) {
         console.error('Init error:', err);
       } finally {
@@ -1059,9 +626,8 @@ export default function App() {
 
   useEffect(() => {
     const runHealthCheck = async () => {
-      // Skip health check for employee (remote) workspace — boss owns Zalo connections
-      const hcActiveWs = await ipc.workspace?.getActive?.().then((r: any) => r?.workspace).catch(() => null);
-      if (hcActiveWs?.type === 'remote') return;
+      // Skip health check for employee (remote) mode — boss owns Zalo connections
+      if (useEmployeeStore.getState().mode === 'employee') return;
 
       const currentAccounts = useAccountStore.getState().accounts;
       if (!currentAccounts.length) return;
