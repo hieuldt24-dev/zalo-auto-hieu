@@ -640,7 +640,6 @@ class DatabaseService {
         try { this.exec(`ALTER TABLE crm_campaigns ADD COLUMN friend_request_message TEXT NOT NULL DEFAULT ''`); } catch {}
         try { this.exec(`ALTER TABLE crm_campaigns ADD COLUMN campaign_type TEXT NOT NULL DEFAULT 'message'`); } catch {}
         try { this.exec(`ALTER TABLE crm_campaigns ADD COLUMN mixed_config TEXT NOT NULL DEFAULT '{}'`); } catch {}
-        try { this.exec(`ALTER TABLE crm_campaign_contacts ADD COLUMN phone TEXT NOT NULL DEFAULT ''`); } catch {}
 
         this.exec(`
             CREATE TABLE IF NOT EXISTS crm_campaign_contacts (
@@ -650,6 +649,7 @@ class DatabaseService {
                 contact_id TEXT NOT NULL,
                 display_name TEXT DEFAULT '',
                 avatar TEXT DEFAULT '',
+                phone TEXT NOT NULL DEFAULT '',
                 status TEXT NOT NULL DEFAULT 'pending',
                 sent_at INTEGER DEFAULT 0,
                 retry_count INTEGER DEFAULT 0,
@@ -660,6 +660,10 @@ class DatabaseService {
             CREATE INDEX IF NOT EXISTS idx_crm_cc_campaign ON crm_campaign_contacts(campaign_id, status);
             CREATE INDEX IF NOT EXISTS idx_crm_cc_owner ON crm_campaign_contacts(owner_zalo_id, status);
         `);
+        // Migration: add phone column for existing DBs created before this field existed
+        // (must run AFTER the CREATE TABLE above, otherwise on a brand-new DB the ALTER
+        // fires before the table exists, fails silently, and the column never gets added)
+        try { this.exec(`ALTER TABLE crm_campaign_contacts ADD COLUMN phone TEXT NOT NULL DEFAULT ''`); } catch {}
 
         this.exec(`
             CREATE TABLE IF NOT EXISTS crm_send_log (
@@ -3921,15 +3925,15 @@ class DatabaseService {
 
     public addCampaignContacts(campaignId: number, ownerZaloId: string, contacts: Array<{ contactId: string; displayName?: string; avatar?: string; phone?: string }>): void {
         if (!this.initialized || !contacts.length) return;
-        try {
-            const stmt = db!.prepare(
-                `INSERT OR IGNORE INTO crm_campaign_contacts (campaign_id, owner_zalo_id, contact_id, display_name, avatar, phone, status, sent_at, retry_count, error) VALUES (?,?,?,?,?,?,'pending',0,0,'')`
-            );
-            for (const c of contacts) {
-                stmt.run(campaignId, ownerZaloId, c.contactId, c.displayName || '', c.avatar || '', c.phone || '');
-            }
-            this.save();
-        } catch (err: any) { Logger.error(`[DB] addCampaignContacts: ${err.message}`); }
+        // Không nuốt lỗi ở đây: nếu insert thất bại (vd. thiếu cột do lỗi migration),
+        // ipcMain handler cần biết để trả success:false thay vì hiện thông báo thành công giả.
+        const stmt = db!.prepare(
+            `INSERT OR IGNORE INTO crm_campaign_contacts (campaign_id, owner_zalo_id, contact_id, display_name, avatar, phone, status, sent_at, retry_count, error) VALUES (?,?,?,?,?,?,'pending',0,0,'')`
+        );
+        for (const c of contacts) {
+            stmt.run(campaignId, ownerZaloId, c.contactId, c.displayName || '', c.avatar || '', c.phone || '');
+        }
+        this.save();
     }
 
     public getCampaignContacts(campaignId: number): CRMCampaignContact[] {
@@ -3980,6 +3984,35 @@ class DatabaseService {
             );
             return rows[0] || null;
         } catch (err: any) { Logger.error(`[DB] getNextPendingCampaignContact: ${err.message}`); return null; }
+    }
+
+    /**
+     * Tự chữa các campaign 'active' đã hết contact pending/sending nhưng chưa được
+     * đánh dấu 'done' — do bug cũ (completion check chỉ chạy ở nhánh gửi thành công)
+     * hoặc do app bị tắt đột ngột giữa chừng. Trả về danh sách campaignId đã chữa.
+     */
+    public healOrphanedActiveCampaigns(ownerZaloId: string): number[] {
+        if (!this.initialized) return [];
+        try {
+            const rows = this.query<any>(
+                `SELECT c.id FROM crm_campaigns c
+                 WHERE c.owner_zalo_id=? AND c.status='active'
+                 AND NOT EXISTS (
+                     SELECT 1 FROM crm_campaign_contacts cc
+                     WHERE cc.campaign_id=c.id AND cc.status IN ('pending','sending')
+                 )`,
+                [ownerZaloId]
+            );
+            const ids = rows.map((r: any) => r.id as number);
+            for (const id of ids) {
+                this.run(`UPDATE crm_campaigns SET status='done' WHERE id=?`, [id]);
+            }
+            if (ids.length > 0) this.save();
+            return ids;
+        } catch (err: any) {
+            Logger.error(`[DB] healOrphanedActiveCampaigns: ${err.message}`);
+            return [];
+        }
     }
 
     /** Kiểm tra có campaign nào đang active không */

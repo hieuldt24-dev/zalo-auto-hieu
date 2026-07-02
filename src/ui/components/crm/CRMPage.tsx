@@ -307,9 +307,13 @@ export default function CRMPage() {
 
   const handleAddContactsToCampaign = async (campaignId: number, contacts: any[]) => {
     if (!activeAccountId) return;
-    await ipc.crm?.addCampaignContacts({ zaloId: activeAccountId, campaignId, contacts });
+    const res = await ipc.crm?.addCampaignContacts({ zaloId: activeAccountId, campaignId, contacts });
     await loadCampaigns();
-    showNotification(`Đã thêm ${contacts.length} liên hệ vào chiến dịch`, 'success');
+    if (res?.success) {
+      showNotification(`Đã thêm ${contacts.length} liên hệ vào chiến dịch`, 'success');
+    } else {
+      showNotification('Lỗi thêm liên hệ: ' + (res?.error || 'Không rõ'), 'error');
+    }
   };
 
   const handleUpdateCampaign = async (data: any) => {

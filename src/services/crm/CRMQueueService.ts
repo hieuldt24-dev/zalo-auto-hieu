@@ -27,6 +27,16 @@ class CRMQueueService {
     private readonly CHECK_INTERVAL_MS = 5000;          // kiểm tra mỗi 5s
     private readonly MIN_DELAY_MS = 30 * 1000;          // tối thiểu 30s
     private readonly PHONE_RESOLVE_TIMEOUT_MS = 15_000; // timeout resolve phone → tránh treo vô hạn
+    private readonly SEND_TIMEOUT_MS = 30_000;          // timeout cho các lệnh gửi tin/kết bạn/mời nhóm → tránh isProcessing kẹt vĩnh viễn
+
+    /** Wrap 1 promise với timeout — nếu quá hạn sẽ reject thay vì treo vô hạn */
+    private withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+        return Promise.race([
+            promise,
+            new Promise<T>((_, reject) =>
+                setTimeout(() => reject(new Error(`Timeout: ${label} quá ${Math.round(ms / 1000)}s`)), ms)),
+        ]);
+    }
 
     public static getInstance(): CRMQueueService {
         if (!CRMQueueService.instance) CRMQueueService.instance = new CRMQueueService();
@@ -71,7 +81,14 @@ class CRMQueueService {
 
     /** Dừng nếu không còn campaign active */
     public checkAndStopIfIdle(zaloId: string): void {
-        const hasActive = DatabaseService.getInstance().hasActiveCampaigns(zaloId);
+        const db = DatabaseService.getInstance();
+        // Tự chữa campaign 'active' bị kẹt (hết pending nhưng chưa được đánh dấu done)
+        const healedIds = db.healOrphanedActiveCampaigns(zaloId);
+        for (const campaignId of healedIds) {
+            Logger.log(`[CRMQueue] Healed orphaned campaign ${campaignId} → done`);
+            EventBroadcaster.emit('crm:campaignDone', { zaloId, campaignId });
+        }
+        const hasActive = db.hasActiveCampaigns(zaloId);
         if (!hasActive) this.stopForAccount(zaloId);
     }
 
@@ -221,7 +238,7 @@ class CRMQueueService {
             if (!effectiveDisplayName && /^\d{5,}$/.test(effectiveContactId)) {
                 Logger.log(`[CRMQueue] Resolving UID ${effectiveContactId} via getUserInfo...`);
                 try {
-                    const infoRes = await (conn.api as any).getUserInfo(effectiveContactId);
+                    const infoRes = await this.withTimeout<any>((conn.api as any).getUserInfo(effectiveContactId), this.SEND_TIMEOUT_MS, 'getUserInfo');
                     const profile = infoRes?.response?.changed_profiles?.[effectiveContactId]
                         ?? infoRes?.changed_profiles?.[effectiveContactId];
                     if (profile) effectiveDisplayName = profile.displayName || profile.zaloName || profile.name || '';
@@ -274,7 +291,7 @@ class CRMQueueService {
                 const responses: any[] = [];
                 const text = substitute(block.text || '');
                 if (text.trim()) {
-                    const resp = await (conn.api as any).sendMessage({ msg: text }, threadId, threadType);
+                    const resp = await this.withTimeout((conn.api as any).sendMessage({ msg: text }, threadId, threadType), this.SEND_TIMEOUT_MS, 'sendMessage');
                     responses.push(resp);
                 }
                 const imgs = (block.images || []).filter(Boolean);
@@ -296,7 +313,7 @@ class CRMQueueService {
                         }
                     }
                     if (attachments.length > 0) {
-                        const resp = await (conn.api as any).sendMessage({ msg: '', attachments }, threadId, threadType);
+                        const resp = await this.withTimeout((conn.api as any).sendMessage({ msg: '', attachments }, threadId, threadType), this.SEND_TIMEOUT_MS, 'sendMessage (ảnh)');
                         responses.push(resp);
                     }
                 }
@@ -388,14 +405,14 @@ class CRMQueueService {
 
                         } else if (action === 'friend_request') {
                             const req = { type: 'sendFriendRequest', msg: friendMsg, userId: effectiveContactId };
-                            const resp = await (conn.api as any).sendFriendRequest(friendMsg, effectiveContactId);
+                            const resp = await this.withTimeout((conn.api as any).sendFriendRequest(friendMsg, effectiveContactId), this.SEND_TIMEOUT_MS, 'sendFriendRequest');
                             db.saveSendLog({ ...logBase, message: `[Hỗn hợp/Kết bạn] ${friendMsg}`, status: 'sent', send_type: 'friend_request',
                                 data_request: JSON.stringify(req), data_response: JSON.stringify(resp) });
                             Logger.log(`[CRMQueue] Mixed/friend_request ✅ → ${effectiveContactId}`);
 
                         } else if (action === 'invite_to_groups' && mixedGroupIds.length > 0) {
                             const req = { type: 'inviteUserToGroups', userId: effectiveContactId, groupIds: mixedGroupIds };
-                            const resp = await (conn.api as any).inviteUserToGroups(effectiveContactId, mixedGroupIds);
+                            const resp = await this.withTimeout((conn.api as any).inviteUserToGroups(effectiveContactId, mixedGroupIds), this.SEND_TIMEOUT_MS, 'inviteUserToGroups');
                             db.saveSendLog({ ...logBase,
                                 message: `[Hỗn hợp/Mời nhóm] Mời vào ${mixedGroupIds.length} nhóm: ${mixedGroupIds.join(', ')}`,
                                 status: 'sent', send_type: 'invite_to_group',
@@ -429,7 +446,7 @@ class CRMQueueService {
                 } catch (msgErr: any) {
                     if (isMixedFallbackError(msgErr)) {
                         Logger.log(`[CRMQueue] Mixed fallback → sendFriendRequest for ${effectiveContactId}`);
-                        const friendResp = await (conn.api as any).sendFriendRequest(friendMsg, effectiveContactId);
+                        const friendResp = await this.withTimeout((conn.api as any).sendFriendRequest(friendMsg, effectiveContactId), this.SEND_TIMEOUT_MS, 'sendFriendRequest');
                         mixedResp = [friendResp];
                         actionLabel = 'friend_request_fallback';
                     } else { throw msgErr; }
@@ -445,7 +462,7 @@ class CRMQueueService {
             } else if (campaignType === 'friend_request') {
                 // ── Kết bạn only ─────────────────────────────────────────────────
                 const req = { type: 'sendFriendRequest', msg: friendMsg, userId: effectiveContactId };
-                const resp = await (conn.api as any).sendFriendRequest(friendMsg, effectiveContactId);
+                const resp = await this.withTimeout((conn.api as any).sendFriendRequest(friendMsg, effectiveContactId), this.SEND_TIMEOUT_MS, 'sendFriendRequest');
                 db.updateCampaignContactStatus(item.id!, 'sent');
                 db.saveSendLog({ ...logBase, message: `[Kết bạn] ${friendMsg}`, status: 'sent',
                     data_request: JSON.stringify(req), data_response: JSON.stringify(resp) });
@@ -455,7 +472,7 @@ class CRMQueueService {
                 const groupIds = mixedGroupIds;
                 if (groupIds.length === 0) throw new Error('Không có nhóm nào được chỉ định trong chiến dịch');
                 const req = { type: 'inviteUserToGroups', userId: effectiveContactId, groupIds };
-                const resp = await (conn.api as any).inviteUserToGroups(effectiveContactId, groupIds);
+                const resp = await this.withTimeout((conn.api as any).inviteUserToGroups(effectiveContactId, groupIds), this.SEND_TIMEOUT_MS, 'inviteUserToGroups');
                 db.updateCampaignContactStatus(item.id!, 'sent');
                 db.saveSendLog({ ...logBase,
                     message: `[Mời nhóm] Mời vào ${groupIds.length} nhóm: ${groupIds.join(', ')}`,
@@ -485,7 +502,6 @@ class CRMQueueService {
 
             Logger.log(`[CRMQueue] ✅ Sent to ${effectiveContactId} (campaign ${item.campaign_id})`);
             this.broadcastProgress(zaloId, item.campaign_id, effectiveContactId, 'sent');
-            this.checkCampaignCompletion(item.campaign_id, zaloId);
 
         } catch (err: any) {
             const errMsg = err?.message || String(err);
@@ -515,6 +531,10 @@ class CRMQueueService {
             this.broadcastProgress(zaloId, item.campaign_id, effectiveContactId, 'failed', errMsg);
         } finally {
             this.isProcessing.set(zaloId, false);
+            // Luôn kiểm tra completion ở đây (không chỉ nhánh thành công) — nếu không,
+            // campaign mà contact cuối cùng bị lỗi (SĐT sai, bị chặn, exception...) sẽ
+            // kẹt mãi ở status 'active' dù hàng đợi đã thực sự xử lý xong.
+            this.checkCampaignCompletion(item.campaign_id, zaloId);
         }
     }
 
@@ -565,19 +585,13 @@ class CRMQueueService {
      */
     private async resolvePhoneContact(phone: string, api: any): Promise<{ uid: string; name: string } | null> {
         // Timeout để tránh API treo vô hạn → queue tê liệt
-        /** Helper tạo promise với timeout */
-        const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
-            Promise.race([
-                promise,
-                new Promise<T>((_, reject) => setTimeout(() => reject(new Error('API timeout')), ms)),
-            ]);
         try {
-            const res: any = await withTimeout(api.findUser(phone), this.PHONE_RESOLVE_TIMEOUT_MS);
+            const res: any = await this.withTimeout(api.findUser(phone), this.PHONE_RESOLVE_TIMEOUT_MS, 'findUser');
             const u: any = res?.response ?? res;
             if (!u?.uid) return null;
             let name = u.display_name || u.zalo_name || phone;
             try {
-                const infoRes: any = await withTimeout(api.getUserInfo(u.uid), this.PHONE_RESOLVE_TIMEOUT_MS);
+                const infoRes: any = await this.withTimeout(api.getUserInfo(u.uid), this.PHONE_RESOLVE_TIMEOUT_MS, 'getUserInfo');
                 const profile: any = infoRes?.response?.changed_profiles?.[u.uid] ?? infoRes?.changed_profiles?.[u.uid];
                 if (profile) {
                     name = profile.displayName || profile.zaloName || profile.name || name;
