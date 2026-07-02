@@ -10,9 +10,6 @@ export type {
     CRMCampaignStatus, CRMContactStatus, CRMCampaignType,
 } from './crm';
 
-// AI
-export type { AIAssistant, AIAssistantFile, ChatMessage, AIPlatform, AIUsageLog, AIAccountAssistant } from './ai';
-
 // Employee
 export type {
     Employee, EmployeePermission, EmployeeWithDetails, EmployeeModule,

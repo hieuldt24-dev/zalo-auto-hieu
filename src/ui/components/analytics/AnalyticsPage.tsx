@@ -28,12 +28,6 @@ interface CampaignRow {
   total: number; sent: number; failed: number; pending: number; replied: number;
   deliveryRate: number; replyRate: number;
 }
-interface AIData {
-  totalRequests: number; totalTokens: number; totalPromptTokens: number; totalCompletionTokens: number;
-  byModel: Array<{ model: string; requests: number; tokens: number }>;
-  byAssistant: Array<{ assistantName: string; requests: number; tokens: number }>;
-  timeline: Array<{ bucket: string; requests: number; tokens: number }>;
-}
 interface ContactGrowthPoint { bucket: string; newContacts: number; newFriends: number; }
 interface ResponseTimeData {
   avgSeconds: number; medianSeconds: number; minSeconds: number; maxSeconds: number;
@@ -198,14 +192,13 @@ function SkeletonChart() {
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
-type TabId = 'overview' | 'messages' | 'contacts' | 'labels' | 'campaigns' | 'ai';
+type TabId = 'overview' | 'messages' | 'contacts' | 'labels' | 'campaigns';
 const TABS: { id: TabId; icon: string; label: string }[] = [
   { id: 'overview', icon: '📊', label: 'Tổng quan' },
   { id: 'messages', icon: '💬', label: 'Tin nhắn' },
   { id: 'contacts', icon: '👥', label: 'Liên hệ' },
   { id: 'labels', icon: '🏷️', label: 'Nhãn' },
   { id: 'campaigns', icon: '📢', label: 'Chiến dịch' },
-  { id: 'ai', icon: '🤖', label: 'AI' },
 ];
 
 type TimePeriod = 'today' | 'yesterday' | '7d' | '30d' | '90d' | 'custom';
@@ -270,15 +263,6 @@ const GUIDE_CONTENT: Record<TabId, { title: string; sections: Array<{ heading: s
       { heading: 'KPI', content: 'Tổng chiến dịch, đã gửi, lỗi, trả lời, % gửi thành công. Tính trên toàn bộ chiến dịch.' },
       { heading: '📊 Top chiến dịch', content: 'Biểu đồ ngang so sánh top 10 chiến dịch theo số tin đã gửi, trả lời, lỗi.' },
       { heading: '📋 Chi tiết', content: 'Bảng liệt kê tất cả chiến dịch với trạng thái, số liệu gửi/lỗi/trả lời, tỷ lệ gửi thành công và phản hồi.' },
-    ],
-  },
-  ai: {
-    title: '🤖 Hướng dẫn — AI',
-    sections: [
-      { heading: 'KPI', content: 'Tổng requests, tổng tokens (prompt + completion). Token là đơn vị đo lường dữ liệu AI xử lý.' },
-      { heading: '📈 Usage theo ngày', content: 'Biểu đồ kết hợp: cột = số requests, đường = tokens tiêu thụ theo ngày.' },
-      { heading: '🥧 Phân bổ Model', content: 'Biểu đồ tròn tokens phân bổ theo từng model AI (GPT-4, GPT-3.5, v.v.).' },
-      { heading: '📋 Chi tiết', content: 'Bảng chi tiết theo model và theo AI assistant: requests, tokens, TB tokens/request.' },
     ],
   },
 };
@@ -354,7 +338,6 @@ export default function AnalyticsPage() {
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [friendReqs, setFriendReqs] = useState<{ totalSent: number; totalReceived: number; timeline: any[] }>({ totalSent: 0, totalReceived: 0, timeline: [] });
   const [contactGrowth, setContactGrowth] = useState<ContactGrowthPoint[]>([]);
-  const [aiData, setAIData] = useState<AIData | null>(null);
   const [responseTimeData, setResponseTimeData] = useState<ResponseTimeData | null>(null);
   const [labelUsageData, setLabelUsageData] = useState<LabelUsageData | null>(null);
 
@@ -408,7 +391,7 @@ export default function AnalyticsPage() {
     const ipc = api();
     try {
       const tt = threadType === -1 ? undefined : threadType;
-      const [overviewRes, volumeRes, heatmapRes, segRes, campRes, frRes, growthRes, aiRes, rtRes, luRes] = await Promise.all([
+      const [overviewRes, volumeRes, heatmapRes, segRes, campRes, frRes, growthRes, rtRes, luRes] = await Promise.all([
         ipc?.dashboardOverview({ zaloId: selectedAccountId }),
         ipc?.messageVolume({ zaloId: selectedAccountId, sinceTs: from, untilTs: to, granularity: periodDays <= 2 ? 'hour' : 'day', threadType: tt }),
         ipc?.peakHours({ zaloId: selectedAccountId, sinceTs: from, untilTs: to, threadType: tt }),
@@ -416,7 +399,6 @@ export default function AnalyticsPage() {
         ipc?.campaignComparison({ zaloId: selectedAccountId }),
         ipc?.friendRequests({ zaloId: selectedAccountId, sinceTs: from, untilTs: to }),
         ipc?.contactGrowth({ zaloId: selectedAccountId, sinceTs: from, untilTs: to }),
-        ipc?.aiAnalytics({ sinceTs: from, untilTs: to }),
         ipc?.responseTime({ zaloId: selectedAccountId, sinceTs: from, untilTs: to, threadType: tt }),
         ipc?.labelUsage({ zaloId: selectedAccountId, sinceTs: from, untilTs: to }),
       ]);
@@ -427,7 +409,6 @@ export default function AnalyticsPage() {
       if (campRes?.success) setCampaigns(campRes.data || []);
       if (frRes?.success) setFriendReqs({ totalSent: frRes.totalSent, totalReceived: frRes.totalReceived, timeline: frRes.timeline || [] });
       if (growthRes?.success) setContactGrowth(growthRes.data || []);
-      if (aiRes?.success) setAIData(aiRes as any);
       if (rtRes?.success) setResponseTimeData(rtRes as any);
       if (luRes?.success) setLabelUsageData(luRes as any);
     } catch { /* silent */ }
@@ -454,12 +435,6 @@ export default function AnalyticsPage() {
     { name: 'Đã gắn tag', value: segmentation.tagged, fill: '#3b82f6' },
     { name: 'Chưa gắn tag', value: segmentation.untagged, fill: '#4b5563' },
   ].filter(d => d.value > 0) : [];
-
-  // Workflow pie
-  // AI model pie
-  const aiModelPie = aiData?.byModel.map((m, i) => ({
-    name: m.model, value: m.tokens, fill: PIE_COLORS[i % PIE_COLORS.length],
-  })) || [];
 
   if (accounts.length === 0) {
     return (
@@ -569,7 +544,7 @@ export default function AnalyticsPage() {
       {activeTab === 'overview' && (
         <OverviewTab
           loading={loading} overview={overview} todayTrend={todayTrend}
-          friendReqs={friendReqs} aiData={aiData}
+          friendReqs={friendReqs}
           volume={volume} periodDays={periodDays}
           responseTime={responseTimeData} contactType={contactType}
           contactGrowth={contactGrowth} labelUsage={labelUsageData}
@@ -589,9 +564,6 @@ export default function AnalyticsPage() {
       {activeTab === 'campaigns' && (
         <CampaignsTab loading={loading} campaigns={campaigns} overview={overview} />
       )}
-      {activeTab === 'ai' && (
-        <AITab loading={loading} aiData={aiData} aiModelPie={aiModelPie} />
-      )}
     </div>
   );
 }
@@ -599,11 +571,10 @@ export default function AnalyticsPage() {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: Overview
 // ══════════════════════════════════════════════════════════════════════════════
-function OverviewTab({ loading, overview, todayTrend, friendReqs, aiData, volume, periodDays, responseTime, contactType, contactGrowth, labelUsage }: {
+function OverviewTab({ loading, overview, todayTrend, friendReqs, volume, periodDays, responseTime, contactType, contactGrowth, labelUsage }: {
   loading: boolean; overview: OverviewData | null;
   todayTrend?: { value: string; positive: boolean };
   friendReqs: { totalSent: number; totalReceived: number; timeline: any[] };
-  aiData: AIData | null;
   volume: VolumePoint[]; periodDays: number;
   responseTime: ResponseTimeData | null; contactType: ContactType;
   contactGrowth: ContactGrowthPoint[]; labelUsage: LabelUsageData | null;
@@ -626,8 +597,6 @@ function OverviewTab({ loading, overview, todayTrend, friendReqs, aiData, volume
           color={overview.activeCampaigns > 0 ? 'green' : 'yellow'} />
         <KPICard icon="🤝" label="Lời mời KB" value={friendReqs.totalReceived + friendReqs.totalSent}
           sub={`${friendReqs.totalSent} gửi · ${friendReqs.totalReceived} nhận`} color="yellow" />
-        <KPICard icon="🤖" label="AI requests" value={aiData?.totalRequests ?? 0}
-          sub={aiData ? `${aiData.totalTokens.toLocaleString('vi-VN')} tokens` : '—'} color="purple" />
       </div>
 
 
@@ -1311,135 +1280,4 @@ function CampaignsTab({ loading, campaigns, overview }: {
     </div>
   );
 }
-
-// ══════════════════════════════════════════════════════════════════════════════
-// TAB: AI
-// ══════════════════════════════════════════════════════════════════════════════
-function AITab({ loading, aiData, aiModelPie }: {
-  loading: boolean; aiData: AIData | null; aiModelPie: any[];
-}) {
-  if (loading) return <SkeletonChart />;
-  if (!aiData || aiData.totalRequests === 0) {
-    return (
-      <div className="text-center py-16 text-gray-500 text-sm">
-        <span className="text-3xl mb-3 block">🤖</span>
-        Chưa có dữ liệu AI trong khoảng thời gian đã chọn
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard icon="🤖" label="Tổng requests" value={aiData.totalRequests} color="blue" />
-        <KPICard icon="🔤" label="Tổng tokens" value={aiData.totalTokens} color="purple" />
-        <KPICard icon="📥" label="Prompt tokens" value={aiData.totalPromptTokens} color="cyan" />
-        <KPICard icon="📤" label="Completion tokens" value={aiData.totalCompletionTokens} color="green" />
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        {/* Timeline: requests + tokens */}
-        <Section title="📈 AI usage theo ngày">
-          {aiData.timeline.length === 0 ? (
-            <p className="text-xs text-gray-500 text-center py-8">Chưa có dữ liệu</p>
-          ) : (
-            <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={aiData.timeline} margin={{ top: 4, right: 8, bottom: 0, left: -18 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                  <XAxis dataKey="bucket" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="left" tick={{ fontSize: 9, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={ChartTooltip} />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                  <Bar yAxisId="left" dataKey="requests" name="Requests" fill="#3b82f6" radius={[2, 2, 0, 0]} maxBarSize={16} />
-                  <Line yAxisId="right" type="monotone" dataKey="tokens" name="Tokens" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </Section>
-
-        {/* Model breakdown pie */}
-        <Section title="🥧 Phân bổ theo Model">
-          {aiModelPie.length === 0 ? (
-            <p className="text-xs text-gray-500 text-center py-8">Chưa có dữ liệu</p>
-          ) : (
-            <div className="h-52 flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={aiModelPie} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    innerRadius={40} outerRadius={70} paddingAngle={3} strokeWidth={0}>
-                    {aiModelPie.map((d, i) => <Cell key={i} fill={d.fill} />)}
-                  </Pie>
-                  <Tooltip content={PieTooltip} />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </Section>
-      </div>
-
-      {/* By model table */}
-      {aiData.byModel.length > 0 && (
-        <Section title="📋 Chi tiết theo Model">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-gray-500 border-b border-gray-700">
-                  <th className="text-left py-2 px-2 font-medium">Model</th>
-                  <th className="text-right py-2 px-2 font-medium">Requests</th>
-                  <th className="text-right py-2 px-2 font-medium">Tokens</th>
-                  <th className="text-right py-2 px-2 font-medium">TB tokens/req</th>
-                </tr>
-              </thead>
-              <tbody>
-                {aiData.byModel.map((m, i) => (
-                  <tr key={i} className="border-b border-gray-700/50 hover:bg-gray-700/20 transition-colors">
-                    <td className="py-2 px-2 text-gray-200 font-medium">{m.model}</td>
-                    <td className="py-2 px-2 text-right text-gray-300">{m.requests.toLocaleString('vi-VN')}</td>
-                    <td className="py-2 px-2 text-right text-blue-400">{m.tokens.toLocaleString('vi-VN')}</td>
-                    <td className="py-2 px-2 text-right text-gray-400">
-                      {m.requests > 0 ? Math.round(m.tokens / m.requests).toLocaleString('vi-VN') : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Section>
-      )}
-
-      {/* By assistant table */}
-      {aiData.byAssistant.length > 0 && (
-        <Section title="🧠 Chi tiết theo AI Assistant">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-gray-500 border-b border-gray-700">
-                  <th className="text-left py-2 px-2 font-medium">Assistant</th>
-                  <th className="text-right py-2 px-2 font-medium">Requests</th>
-                  <th className="text-right py-2 px-2 font-medium">Tokens</th>
-                </tr>
-              </thead>
-              <tbody>
-                {aiData.byAssistant.map((a, i) => (
-                  <tr key={i} className="border-b border-gray-700/50 hover:bg-gray-700/20 transition-colors">
-                    <td className="py-2 px-2 text-gray-200 font-medium">{a.assistantName}</td>
-                    <td className="py-2 px-2 text-right text-gray-300">{a.requests.toLocaleString('vi-VN')}</td>
-                    <td className="py-2 px-2 text-right text-blue-400">{a.tokens.toLocaleString('vi-VN')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Section>
-      )}
-    </div>
-  );
-}
-
-
-
 

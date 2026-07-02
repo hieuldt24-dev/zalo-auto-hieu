@@ -201,11 +201,6 @@ export function registerCRMIpc(): void {
         catch (e: any) { return { success: false, error: e.message }; }
     });
 
-    ipcMain.handle('analytics:aiAnalytics', async (_e, { sinceTs, untilTs }: { sinceTs: number; untilTs: number }) => {
-        try { return { success: true, ...DatabaseService.getInstance().getAIAnalytics(sinceTs, untilTs) }; }
-        catch (e: any) { return { success: false, error: e.message }; }
-    });
-
     ipcMain.handle('analytics:responseTime', async (_e, { zaloId, sinceTs, untilTs, threadType }: { zaloId: string; sinceTs: number; untilTs: number; threadType?: number }) => {
         try { return { success: true, ...DatabaseService.getInstance().getResponseTimeStats(zaloId, sinceTs, untilTs, threadType) }; }
         catch (e: any) { return { success: false, error: e.message }; }

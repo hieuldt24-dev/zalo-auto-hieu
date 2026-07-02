@@ -1,8 +1,8 @@
 # Đặc tả Yêu cầu Chức năng — ZaloAuto Builder
 
-> **Phiên bản tài liệu:** 1.0
-> **Cập nhật:** 2026-07-01
-> **Trạng thái nguồn:** Fork tối giản từ `deplao-builder` (MIT License), chỉ giữ 3 nhóm chức năng cốt lõi.
+> **Phiên bản tài liệu:** 1.1
+> **Cập nhật:** 2026-07-02 — gỡ bỏ hoàn toàn AI Assistant (xem §2.2, §10 TECH-09)
+> **Trạng thái nguồn:** Fork tối giản từ `deplao-builder` (MIT License), chỉ giữ 2 nhóm chức năng cốt lõi.
 > **Mục đích tài liệu:** Làm cơ sở để triển khai, mở rộng và kiểm thử app trong tương lai.
 
 ---
@@ -15,15 +15,13 @@
 ### 1.2. Mục tiêu
 - Quản lý nhiều tài khoản Zalo cùng lúc, mỗi tài khoản có thể gắn proxy riêng.
 - Biến Zalo thành một CRM nhẹ: phân loại khách hàng, ghi chú, chiến dịch nhắn tin hàng loạt có kiểm soát.
-- Tích hợp AI trợ lý để gợi ý trả lời và hỏi-đáp thủ công ngay trong khung chat.
 
 ### 1.3. Đối tượng sử dụng
 Shop online, SME, agency marketing, spa, phòng khám, trung tâm giáo dục — bất kỳ đội nhóm nào vận hành bán hàng/CSKH qua Zalo.
 
-### 1.4. Ba trụ cột chức năng
+### 1.4. Hai trụ cột chức năng
 1. **Nhắn tin đa tài khoản Zalo** (Multi-account Messaging)
 2. **CRM & Quản lý khách hàng**
-3. **AI Assistant**
 
 ---
 
@@ -33,18 +31,18 @@ Shop online, SME, agency marketing, spa, phòng khám, trung tâm giáo dục �
 - Quản lý & đăng nhập nhiều tài khoản Zalo (QR + cookie).
 - Nhắn tin đầy đủ định dạng (text, ảnh, file, sticker, poll, thu hồi, reaction…).
 - CRM: danh bạ, nhãn (Zalo label + local label), ghi chú, chiến dịch gửi hàng loạt.
-- AI Assistant: cấu hình nhiều trợ lý, gợi ý trả lời, chat hỏi-đáp thủ công.
 - Proxy per-account, Lock screen, Dashboard, Báo cáo (Analytics), Cài đặt, Multi-workspace (local).
 
 ### 2.2. Ngoài phạm vi (Out of Scope — đã loại bỏ khỏi bản gốc)
 - ❌ Facebook (nhắn tin, E2EE bridge, quét nhóm/fanpage).
 - ❌ ERP (Task, Calendar, Note, HRM, Notification, Report nhân viên).
 - ❌ Workflow automation engine (kéo-thả node) **và** AI auto-reply 24/7.
+- ❌ **AI Assistant** (gợi ý trả lời, chat hỏi-đáp, quản lý trợ lý đa nền tảng OpenAI/Claude/Gemini/Deepseek/Grok/Mistral) — đã gỡ bỏ hoàn toàn khỏi bản này (2026-07-02): UI (AIQuickPanel, AIAssistantPage, AIAssistantDetailPage, PromptWizardModal, AccountAssignmentPopup), service (`AIAssistantService`), IPC (`aiAssistantIpc`, `analytics:aiAnalytics`), bảng DB (`ai_assistants`, `ai_assistant_files`, `ai_account_assistants`, `ai_usage_logs`), state liên quan trong `appStore`, tab AI trong Báo cáo, và quyền `ai_assistant` trong phân quyền nhân viên. Lý do: tính năng không có đường vào từ giao diện (dead entry point) và tồn tại lỗi runtime (bảng DB cốt lõi chưa từng được tạo).
 - ❌ Quản lý nhân viên + Relay server (Boss↔Employee) + Tunnel công khai + Sync remote.
 - ❌ Tích hợp POS/Vận chuyển (KiotViet, Haravan, Sapo, Nhanh, GHN, GHTK, Casso, SePay).
 - ❌ Tracking/telemetry gửi dữ liệu về server nhà phát triển.
 
-> ⚠️ Một phần code của các module trên còn tồn tại ở dạng **dormant** (không kích hoạt được) trong "vỏ" ứng dụng — xem [Mục 11 — Backlog kỹ thuật](#11-backlog-kỹ-thuật).
+> ⚠️ Một phần code của các module trên còn tồn tại ở dạng **dormant** (không kích hoạt được) trong "vỏ" ứng dụng — xem [Mục 10 — Backlog kỹ thuật](#10-backlog-kỹ-thuật).
 
 ---
 
@@ -62,7 +60,6 @@ Shop online, SME, agency marketing, spa, phòng khám, trung tâm giáo dục �
 | Database | SQLite qua `better-sqlite3` 12 (WAL mode) |
 | Zalo API | `zca-js` 2.1 |
 | Proxy | `proxy-agent`, `socks-proxy-agent`, `https-proxy-agent` |
-| AI providers | OpenAI, Claude, Gemini, Deepseek, Grok, Mistral (REST) |
 | Bảo mật | `safeStorage` (Electron), `bcryptjs`, `dompurify`, `otplib` |
 | Đóng gói | `electron-builder`, JS obfuscator (bản production) |
 
@@ -72,7 +69,7 @@ Shop online, SME, agency marketing, spa, phòng khám, trung tâm giáo dục �
                                                              │
                                               [IPC handlers theo domain]
                                                              │
-                                              [Services: Zalo, CRM, AI, DB, File…]
+                                              [Services: Zalo, CRM, DB, File…]
                                                              │
                                               [SQLite local-first + thư mục media]
 ```
@@ -82,18 +79,18 @@ Shop online, SME, agency marketing, spa, phòng khám, trung tâm giáo dục �
 electron/
   main.ts                # vòng đời app, cửa sổ, tray, đăng ký IPC
   preload.ts             # cầu nối bảo mật renderer ↔ main
-  ipc/                   # loginIpc, zaloIpc, crmIpc, aiAssistantIpc,
+  ipc/                   # loginIpc, zaloIpc, crmIpc,
                          # databaseIpc, fileIpc, proxyIpc, workspaceIpc,
                          # lockScreenIpc, utilIpc
 src/
-  services/              # ai, crm, database, event, file, http, login, secure, zalo
-  models/                # kiểu dữ liệu (account, message, contact, crm, ai, proxy…)
+  services/              # crm, database, event, file, http, login, secure, zalo
+  models/                # kiểu dữ liệu (account, message, contact, crm, proxy…)
   utils/                 # ConnectionManager, WorkspaceManager, ZaloLoginHelper, ProxyHelper…
   ui/
     App.tsx              # shell, routing theo `view`
     lib/ipc.ts           # wrapper typed quanh window.electronAPI
     store/               # accountStore, chatStore, crmStore, appStore, workspaceStore…
-    components/          # auth, chat, crm, dashboard, analytics, integration(AI), settings, layout, common
+    components/          # auth, chat, crm, dashboard, analytics, settings, layout, common
 ```
 
 ### 3.4. Nguyên tắc IPC
@@ -176,29 +173,12 @@ src/
 
 ---
 
-## 7. Yêu cầu chức năng — AI Assistant
-
-| ID | Yêu cầu | Ưu tiên |
-|---|---|---|
-| FR-AI-01 | CRUD nhiều **trợ lý AI**; đặt trợ lý mặc định. | Bắt buộc |
-| FR-AI-02 | Hỗ trợ đa nền tảng: **OpenAI, Claude, Gemini, Deepseek, Grok, Mistral** (cấu hình API key, model, baseUrl, temperature, maxTokens, contextMessageCount). | Bắt buộc |
-| FR-AI-03 | API key lưu **mã hoá** (`safeStorage`, prefix `enc:`); hiển thị dạng che `***`. | Bắt buộc |
-| FR-AI-04 | **Gợi ý trả lời**: từ lịch sử chat, sinh danh sách gợi ý để người dùng chọn. | Bắt buộc |
-| FR-AI-05 | **Chat hỏi-đáp thủ công** trong panel AI ngay trong khung chat (AIQuickPanel). | Bắt buộc |
-| FR-AI-06 | Gán trợ lý theo **vai trò** cho từng tài khoản (suggestion / panel). | Nên có |
-| FR-AI-07 | **Knowledge base**: upload file làm ngữ cảnh cho trợ lý; danh sách sản phẩm ghim (`pinnedProductsJson`) đưa vào system prompt. | Nên có |
-| FR-AI-08 | **Nhật ký sử dụng** (usage log): tokens, model, theo trợ lý; thống kê. | Nên có |
-| FR-AI-09 | Wizard tạo prompt (PromptWizardModal). | Tuỳ chọn |
-| FR-AI-10 | **[Đã loại bỏ]** AI auto-reply 24/7 (phụ thuộc Workflow engine) — không có trong bản này. | — |
-
----
-
-## 8. Yêu cầu chức năng — Hỗ trợ & Hệ thống
+## 7. Yêu cầu chức năng — Hỗ trợ & Hệ thống
 
 | ID | Yêu cầu | Ưu tiên |
 |---|---|---|
 | FR-SYS-01 | **Dashboard** tổng quan tài khoản & hoạt động. | Nên có |
-| FR-SYS-02 | **Báo cáo (Analytics)**: tổng quan, tin nhắn, liên hệ, nhãn, chiến dịch, AI (theo khoảng thời gian). | Nên có |
+| FR-SYS-02 | **Báo cáo (Analytics)**: tổng quan, tin nhắn, liên hệ, nhãn, chiến dịch (theo khoảng thời gian). | Nên có |
 | FR-SYS-03 | **Cài đặt**: hội thoại, giao diện (theme, cỡ chữ), thông báo, tài khoản, proxy, bảo mật, workspace, lưu trữ, giới thiệu, changelog. | Bắt buộc |
 | FR-SYS-04 | **Lock screen**: đặt mật khẩu, mở khoá (mật khẩu/biometric), recovery key, cooldown chống brute-force. | Nên có |
 | FR-SYS-05 | **Multi-workspace (local)**: nhiều workspace với DB + thư mục media độc lập; chuyển đổi workspace. | Nên có |
@@ -209,7 +189,7 @@ src/
 
 ---
 
-## 9. Yêu cầu phi chức năng (Non-Functional)
+## 8. Yêu cầu phi chức năng (Non-Functional)
 
 | ID | Yêu cầu |
 |---|---|
@@ -224,7 +204,7 @@ src/
 
 ---
 
-## 10. Ràng buộc & Rủi ro
+## 9. Ràng buộc & Rủi ro
 
 | ID | Nội dung |
 |---|---|
@@ -237,7 +217,7 @@ src/
 
 ---
 
-## 11. Backlog kỹ thuật
+## 10. Backlog kỹ thuật
 
 ### Đã hoàn thành (2026-07-02)
 
@@ -249,6 +229,7 @@ src/
 | TECH-05 | Sửa **CI workflows**: bỏ bước `build:bridge-e2ee` + Go setup (build-all, build-ubuntu), xoá `deploy-landing.yml` (thư mục `landing/` không tồn tại), rebrand repo/tên release. | 4 workflow còn lại chạy được, không còn bước chết. |
 | TECH-06 | **Rebrand** "Deplao" → "ZaloAuto": `main.ts` (app name, AUMID, tray, deep-link scheme `deplao://`→`zaloauto://`), `index.html`, `TopBar`, `Sidebar`, `Settings`, `LockScreen`, `Dashboard`, `UpdateNotification` (kèm sửa link tải macOS trỏ nhầm sang app gốc), `EmployeeLoginScreen`. | Hoàn thành phần code/UI hiển thị. **Còn lại**: `ChangelogSettings.tsx` (761 dòng, nhiều version log mô tả ERP/Workflow/POS đã xoá) và `IntroductionSettings.tsx` (43 chỗ) — nội dung marketing/lịch sử, cần quyết định sản phẩm (viết lại hay giữ nguyên như lịch sử), không sửa mù để tránh bịa nội dung sai. |
 | — | Dọn dead code phát sinh trong lúc sửa: `Sidebar.tsx` (xoá `ToolsGuideModal`/`NavFlyout`/`NavIcon` không thể truy cập, 1021→388 dòng), `AnalyticsPage.tsx` (xoá `WorkflowTab`/`WorkflowData`), `AddAccountModal.tsx` (xoá `FacebookAccountLoginTab`/`FacebookCookieLoginTab`/`CookieGuidePopup` + ảnh hướng dẫn 2MB `hd_login_fb_cookie.png`). | Giảm bundle JS ~40KB + 2MB ảnh. |
+| TECH-09 | **Xoá hoàn toàn AI Assistant** (FR-AI-01…10, xem §2.2): trước đó tính năng không có đường vào từ Sidebar/App routing (`view === 'integration'` không được render ở đâu) và có bug DB (bảng `ai_assistants`/`ai_assistant_files` chưa từng được `CREATE TABLE`) — coi như chưa từng chạy được, quyết định gỡ bỏ thay vì nối lại dây. | Xoá 9 file UI/service (`AIAssistantPage/DetailPage`, `AIQuickPanel`, `PromptWizardModal`, `AccountAssignmentPopup`, `AIAssistantService`, `aiAssistantIpc`, `models/ai.ts`, `utils/aiUtils.ts`); dọn IPC (`electron/main.ts`, `preload.ts`, `crmIpc.ts`, `src/ui/lib/ipc.ts`); dọn 4 migration + `getAIAnalytics()` trong `DatabaseService.ts`; dọn state/action trong `appStore.ts`; gỡ nút/panel khỏi `ChatHeader.tsx`, `MessageInput.tsx` (kể cả phím tắt `Ctrl+S` treo), `App.tsx`, `ChatWindow.tsx`, `useZaloEvents.ts`, `index.css`; gỡ tab AI khỏi `AnalyticsPage.tsx`; bỏ quyền `ai_assistant` khỏi `ALL_MODULES` (employee.ts); gỡ dependency `uuid`/`@types/uuid` không còn dùng. |
 
 ### Còn lại
 
@@ -256,13 +237,12 @@ src/
 |---|---|---|
 | TECH-01 | **Purge sâu** code Facebook dormant còn lại trong UI chat (các cuộc gọi `ipc.fb?.` khác ngoài `refreshContactAvatar`, `fbInitUtils.ts`, namespace `fb`/`erp`/`workflow`/`employee`/`relay`/`sync`/`integration`/`tunnel` trong `preload.ts`). | Bug cụ thể đã sửa (xem BUG-01); phần còn lại là dead-nhưng-an-toàn, rủi ro cao hơn nếu purge vội vì đan vào chat UI (~150+ tham chiếu). |
 | TECH-02 | Gỡ **workspace/employee dormant** trong shell (WorkspaceSettings, EmployeeConnectionBanner, employeeStore, EmployeeLoginScreen). | Đang để dormant để không vỡ vỏ App — cần plan riêng vì đan vào permission-gating của Sidebar/TopBar. |
-| TECH-06b | Viết lại/xoá bớt `ChangelogSettings.tsx` và `IntroductionSettings.tsx` cho khớp tính năng thực tế của fork này. | Quyết định sản phẩm — xem ghi chú ở TECH-06 trên. |
-| TECH-07 | Đổi tên thư mục `components/integration` → `components/ai` (đang chứa UI AI: AIAssistantPage, AIQuickPanel, PromptWizardModal). | Cosmetic. |
+| TECH-06b | Viết lại/xoá bớt `ChangelogSettings.tsx` và `IntroductionSettings.tsx` cho khớp tính năng thực tế của fork này. | Quyết định sản phẩm — xem ghi chú ở TECH-06 trên. Lưu ý: mọi nhắc tới AI/trợ lý AI trong 2 file này (nếu có) nay đã lỗi thời, cần dọn cùng lúc. |
 | TECH-08 | Thực hiện các cải tiến chống ban FR-CRM-18, FR-CRM-19. | Nâng độ an toàn tài khoản. |
 
 ---
 
-## 12. Tiêu chí nghiệm thu (Acceptance)
+## 11. Tiêu chí nghiệm thu (Acceptance)
 
 - [x] `npm install --legacy-peer-deps` chạy sạch (không `--ignore-scripts`).
 - [x] `npm run build:electron` và `npm run build:renderer` (vite) build thành công.
@@ -270,7 +250,6 @@ src/
 - [ ] Đăng nhập được ≥1 tài khoản Zalo bằng QR và cookie.
 - [ ] Gửi/nhận được tin nhắn text + ảnh.
 - [ ] Tạo được nhãn, ghi chú, và 1 chiến dịch gửi thử với anti-ban hoạt động (delay + limit).
-- [ ] Cấu hình được 1 trợ lý AI và nhận được gợi ý trả lời.
 - [ ] Không có request telemetry gửi ra ngoài (kiểm tra bằng network monitor).
 
 ---
@@ -280,8 +259,6 @@ src/
 **Zalo core:** `accounts`, `messages`, `contacts`, `friends`, `links`, `page_group_member`, `stickers`, `sticker_packs`, `recent_stickers`, `keyword_stickers`, `pinned_messages`, `friend_requests`, `message_drafts`, `bank_cards`, `local_quick_messages`, `local_pinned_conversations`, `local_labels`, `local_label_threads`.
 
 **CRM:** `crm_tags`, `crm_contact_tags`, `crm_notes`, `crm_campaigns`, `crm_campaign_contacts`, `crm_send_log`.
-
-**AI:** `ai_assistants`, `ai_assistant_files`, `ai_account_assistants`, `ai_usage_logs`.
 
 **Khác:** `proxies` (+ per-account settings).
 

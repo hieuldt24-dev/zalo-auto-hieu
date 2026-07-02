@@ -1021,11 +1021,6 @@ export function useZaloEvents() {
         if (cliMsgId && cliMsgId !== msgId) applyPendingEmployeeSender(zaloId, threadId, cliMsgId);
       }
 
-      // Dispatch event for AI suggestions trigger
-      if (!isSelf) {
-        window.dispatchEvent(new CustomEvent('ai:newMessage', { detail: { zaloId, threadId } }));
-      }
-
       // Clear typing indicator cho thread này khi nhận tin nhắn mới
       if (!isSelf) useChatStore.getState().clearTypingForThread(zaloId, threadId);
 

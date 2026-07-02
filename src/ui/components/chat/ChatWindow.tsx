@@ -726,21 +726,6 @@ export default function ChatWindow() {
     return () => el.removeEventListener('scroll', onScroll);
   }, [activeThreadId]);
 
-  // ─── Scroll to bottom khi AI suggestions bar xuất hiện/biến mất ──────────
-  // Khi thanh gợi ý AI thay đổi, input area đổi chiều cao → tin nhắn bị che.
-  // Nếu user đang ở cuối trang → tự động scroll xuống để bù offset.
-  useEffect(() => {
-    const handler = () => {
-      if (atBottom) {
-        requestAnimationFrame(() => {
-          bottomRef.current?.scrollIntoView({ behavior: 'instant' });
-        });
-      }
-    };
-    window.addEventListener('ai:suggestionsBarChanged', handler);
-    return () => window.removeEventListener('ai:suggestionsBarChanged', handler);
-  }, [atBottom]);
-
   // Scroll to bottom chỉ khi có tin nhắn MỚI (tin cuối thay đổi), không scroll khi prepend tin cũ
   // Initial load scroll được xử lý bởi threadReady gate — effect này chỉ handle tin nhắn realtime
   useEffect(() => {

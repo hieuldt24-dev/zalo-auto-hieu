@@ -9,7 +9,6 @@ import { registerZaloIpc } from './ipc/zaloIpc';
 import { registerDatabaseIpc } from './ipc/databaseIpc';
 import { registerFileIpc } from './ipc/fileIpc';
 import { registerCRMIpc } from './ipc/crmIpc';
-import { registerAIAssistantIpc } from './ipc/aiAssistantIpc';
 import { registerUtilIpc } from './ipc/utilIpc';
 import { registerWorkspaceIpc } from './ipc/workspaceIpc';
 import { registerProxyIpc } from './ipc/proxyIpc';
@@ -771,7 +770,6 @@ app.whenReady().then(async () => {
   registerDatabaseIpc();
   registerFileIpc();
   registerCRMIpc();
-  registerAIAssistantIpc();
   registerUtilIpc();
   registerWorkspaceIpc(mainWindow);
   registerProxyIpc();

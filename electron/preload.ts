@@ -266,7 +266,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     campaignComparison:  (params: any) => ipcRenderer.invoke('analytics:campaignComparison', params),
     friendRequests:      (params: any) => ipcRenderer.invoke('analytics:friendRequests', params),
     workflowAnalytics:   (params: any) => ipcRenderer.invoke('analytics:workflowAnalytics', params),
-    aiAnalytics:         (params: any) => ipcRenderer.invoke('analytics:aiAnalytics', params),
     responseTime:        (params: any) => ipcRenderer.invoke('analytics:responseTime', params),
     labelUsage:          (params: any) => ipcRenderer.invoke('analytics:labelUsage', params),
   },
@@ -329,26 +328,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     execute:         (id: string, action: string, params?: any) => ipcRenderer.invoke('integration:execute', { id, action, params }),
     executeByType:   (type: string, action: string, params?: any) => ipcRenderer.invoke('integration:executeByType', { type, action, params }),
     getWebhookPort:  () => ipcRenderer.invoke('integration:getWebhookPort'),
-  },
-
-  // ─── AI Assistants ────────────────────────────────────────────────
-  ai: {
-    listAssistants:  () => ipcRenderer.invoke('ai:listAssistants'),
-    getAssistant:    (id: string) => ipcRenderer.invoke('ai:getAssistant', { id }),
-    getDefault:      () => ipcRenderer.invoke('ai:getDefault'),
-    saveAssistant:   (assistant: any) => ipcRenderer.invoke('ai:saveAssistant', { assistant }),
-    deleteAssistant: (id: string) => ipcRenderer.invoke('ai:deleteAssistant', { id }),
-    testAssistant:   (id: string) => ipcRenderer.invoke('ai:testAssistant', { id }),
-    getFiles:        (assistantId: string) => ipcRenderer.invoke('ai:getFiles', { assistantId }),
-    uploadFile:      (assistantId: string, filePath: string) => ipcRenderer.invoke('ai:uploadFile', { assistantId, filePath }),
-    removeFile:      (fileId: number) => ipcRenderer.invoke('ai:removeFile', { fileId }),
-    suggest:         (assistantId: string, chatHistory: any[]) => ipcRenderer.invoke('ai:suggest', { assistantId, chatHistory }),
-    chat:            (assistantId: string, messages: any[], structured?: boolean, maxTokens?: number) => ipcRenderer.invoke('ai:chat', { assistantId, messages, structured, maxTokens }),
-    getAccountAssistant:  (zaloId: string, role: string) => ipcRenderer.invoke('ai:getAccountAssistant', { zaloId, role }),
-    setAccountAssistant:  (zaloId: string, role: string, assistantId: string | null) => ipcRenderer.invoke('ai:setAccountAssistant', { zaloId, role, assistantId }),
-    getAccountAssistants: (zaloId: string) => ipcRenderer.invoke('ai:getAccountAssistants', { zaloId }),
-    getUsageLogs:  (opts?: any) => ipcRenderer.invoke('ai:getUsageLogs', opts || {}),
-    getUsageStats: (opts?: any) => ipcRenderer.invoke('ai:getUsageStats', opts || {}),
   },
 
   // ─── Tunnel ───────────────────────────────────────────────────────

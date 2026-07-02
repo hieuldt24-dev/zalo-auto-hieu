@@ -30,7 +30,6 @@
     "react-zoom-pan-pinch": "^3.7.0",
     "recharts": "^3.8.0",
     "socks-proxy-agent": "^10.0.0",
-    "uuid": "^13.0.0",
     "zca-js": "^2.1.2"
   },
   "devDependencies": {
@@ -42,7 +41,6 @@
     "@types/node-fetch": "^2.6.13",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.2",
-    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.1.2",

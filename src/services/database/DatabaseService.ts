@@ -1206,80 +1206,6 @@ class DatabaseService {
             Logger.warn(`[DatabaseService] local_labels is_active/sort_order/shortcut migration: ${err.message}`);
         }
 
-        // Migration: add context_message_count to ai_assistants if missing
-        try {
-            const aiCols = this.query<any>(`PRAGMA table_info(ai_assistants)`);
-            if (aiCols.length > 0 && !aiCols.some((c: any) => c.name === 'context_message_count')) {
-                db!.exec(`ALTER TABLE ai_assistants ADD COLUMN context_message_count INTEGER NOT NULL DEFAULT 30`);
-                this.save();
-                Logger.log('[DatabaseService] Migration: added context_message_count to ai_assistants');
-            }
-        } catch (err: any) {
-            Logger.warn(`[DatabaseService] ai_assistants context_message_count migration: ${err.message}`);
-        }
-
-        // Migration: add pinned_products_json to ai_assistants if missing
-        try {
-            const aiCols2 = this.query<any>(`PRAGMA table_info(ai_assistants)`);
-            if (aiCols2.length > 0 && !aiCols2.some((c: any) => c.name === 'pinned_products_json')) {
-                db!.exec(`ALTER TABLE ai_assistants ADD COLUMN pinned_products_json TEXT NOT NULL DEFAULT '[]'`);
-                this.save();
-                Logger.log('[DatabaseService] Migration: added pinned_products_json to ai_assistants');
-            }
-        } catch (err: any) {
-            Logger.warn(`[DatabaseService] pinned_products_json migration: ${err.message}`);
-        }
-
-        // Migration: create ai_account_assistants table for per-account assistant assignment
-        try {
-            const aat = this.query<any>(`SELECT name FROM sqlite_master WHERE type='table' AND name='ai_account_assistants'`);
-            if (aat.length === 0) {
-                db!.exec(`
-                    CREATE TABLE IF NOT EXISTS ai_account_assistants (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        zalo_id TEXT NOT NULL,
-                        role TEXT NOT NULL CHECK(role IN ('suggestion', 'panel')),
-                        assistant_id TEXT NOT NULL,
-                        UNIQUE(zalo_id, role),
-                        FOREIGN KEY(assistant_id) REFERENCES ai_assistants(id) ON DELETE CASCADE
-                    )
-                `);
-                db!.exec(`CREATE INDEX IF NOT EXISTS idx_ai_account_role ON ai_account_assistants(zalo_id, role)`);
-                this.save();
-                Logger.log('[DatabaseService] Migration: created ai_account_assistants table');
-            }
-        } catch (err: any) {
-            Logger.warn(`[DatabaseService] ai_account_assistants migration: ${err.message}`);
-        }
-
-        // Migration: create ai_usage_logs table for tracking AI usage
-        try {
-            const aul = this.query<any>(`SELECT name FROM sqlite_master WHERE type='table' AND name='ai_usage_logs'`);
-            if (aul.length === 0) {
-                db!.exec(`
-                    CREATE TABLE IF NOT EXISTS ai_usage_logs (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        assistant_id TEXT NOT NULL,
-                        assistant_name TEXT DEFAULT '',
-                        platform TEXT DEFAULT '',
-                        model TEXT DEFAULT '',
-                        prompt_text TEXT DEFAULT '',
-                        response_text TEXT DEFAULT '',
-                        prompt_tokens INTEGER DEFAULT 0,
-                        completion_tokens INTEGER DEFAULT 0,
-                        total_tokens INTEGER DEFAULT 0,
-                        created_at INTEGER NOT NULL DEFAULT 0
-                    )
-                `);
-                db!.exec(`CREATE INDEX IF NOT EXISTS idx_ai_usage_date ON ai_usage_logs(created_at)`);
-                db!.exec(`CREATE INDEX IF NOT EXISTS idx_ai_usage_assistant ON ai_usage_logs(assistant_id, created_at)`);
-                this.save();
-                Logger.log('[DatabaseService] Migration: created ai_usage_logs table');
-            }
-        } catch (err: any) {
-            Logger.warn(`[DatabaseService] ai_usage_logs migration: ${err.message}`);
-        }
-
         // Migration: create message_drafts table if missing
         try {
             const md = this.query<any>(`SELECT name FROM sqlite_master WHERE type='table' AND name='message_drafts'`);
@@ -1395,17 +1321,6 @@ class DatabaseService {
             Logger.warn(`[DatabaseService] daily_send_limit migration: ${err.message}`);
         }
 
-        // ── ai_assistants.base_url ────────────────────────────────────────────
-        try {
-            const aiCols = this.query<any>(`PRAGMA table_info(ai_assistants)`);
-            if (aiCols.length > 0 && !aiCols.some((c: any) => c.name === 'base_url')) {
-                db!.exec(`ALTER TABLE ai_assistants ADD COLUMN base_url TEXT DEFAULT NULL`);
-                this.save();
-                Logger.log('[DatabaseService] Migration: added base_url to ai_assistants');
-            }
-        } catch (err: any) {
-            Logger.warn(`[DatabaseService] base_url migration: ${err.message}`);
-        }
     }
 
     // ─── Account Operations ───────────────────────────────────────────────
@@ -4972,79 +4887,6 @@ class DatabaseService {
             return { totalSent: sentCount, totalReceived: receivedCount, timeline };
         } catch (err: any) {
             Logger.error(`[DB] getFriendRequestAnalytics: ${err.message}`);
-            return empty;
-        }
-    }
-
-    // ─── AI Analytics ─────────────────────────────────────────────────────
-
-    /**
-     * AI usage analytics: tokens consumed, request counts, model breakdown
-     */
-    public getAIAnalytics(sinceTs: number, untilTs: number): {
-        totalRequests: number; totalTokens: number; totalPromptTokens: number; totalCompletionTokens: number;
-        byModel: Array<{ model: string; requests: number; tokens: number }>;
-        byAssistant: Array<{ assistantName: string; requests: number; tokens: number }>;
-        timeline: Array<{ bucket: string; requests: number; tokens: number }>;
-    } {
-        const empty = { totalRequests: 0, totalTokens: 0, totalPromptTokens: 0, totalCompletionTokens: 0, byModel: [], byAssistant: [], timeline: [] };
-        if (!this.initialized) return empty;
-        try {
-            // Overall stats
-            const statsRow = this.queryOne<any>(
-                `SELECT COUNT(*) as total,
-                    COALESCE(SUM(total_tokens),0) as tokens,
-                    COALESCE(SUM(prompt_tokens),0) as prompt_tokens,
-                    COALESCE(SUM(completion_tokens),0) as completion_tokens
-                 FROM ai_usage_logs WHERE created_at >= ? AND created_at <= ?`,
-                [sinceTs, untilTs]
-            );
-
-            // By model
-            const modelRows = this.query<any>(
-                `SELECT model, COUNT(*) as requests, COALESCE(SUM(total_tokens),0) as tokens
-                 FROM ai_usage_logs WHERE created_at >= ? AND created_at <= ?
-                 GROUP BY model ORDER BY tokens DESC`,
-                [sinceTs, untilTs]
-            );
-
-            // By assistant
-            const assistantRows = this.query<any>(
-                `SELECT assistant_name, COUNT(*) as requests, COALESCE(SUM(total_tokens),0) as tokens
-                 FROM ai_usage_logs WHERE created_at >= ? AND created_at <= ?
-                 GROUP BY assistant_id ORDER BY tokens DESC`,
-                [sinceTs, untilTs]
-            );
-
-            // Timeline by day
-            const totalDays = Math.ceil((untilTs - sinceTs) / 86400000) + 1;
-            const tlRows = this.query<any>(
-                `SELECT CAST((created_at - ?) / 86400000 AS INTEGER) as day_idx,
-                    COUNT(*) as requests, COALESCE(SUM(total_tokens),0) as tokens
-                 FROM ai_usage_logs WHERE created_at >= ? AND created_at <= ?
-                 GROUP BY day_idx ORDER BY day_idx`,
-                [sinceTs, sinceTs, untilTs]
-            );
-            const tlMap = new Map(tlRows.map((r: any) => [r.day_idx, r]));
-            const timeline: Array<{ bucket: string; requests: number; tokens: number }> = [];
-            for (let i = 0; i < totalDays; i++) {
-                const d = new Date(sinceTs + i * 86400000);
-                const label = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
-                const r = tlMap.get(i);
-                timeline.push({ bucket: label, requests: r?.requests || 0, tokens: r?.tokens || 0 });
-            }
-
-            return {
-                totalRequests: statsRow?.total || 0,
-                totalTokens: statsRow?.tokens || 0,
-                totalPromptTokens: statsRow?.prompt_tokens || 0,
-                totalCompletionTokens: statsRow?.completion_tokens || 0,
-                byModel: modelRows.map((r: any) => ({ model: r.model || 'unknown', requests: r.requests, tokens: r.tokens })),
-                byAssistant: assistantRows.map((r: any) => ({ assistantName: r.assistant_name || 'unknown', requests: r.requests, tokens: r.tokens })),
-                timeline,
-            };
-        } catch (err: any) {
-            Logger.error(`[DB] getAIAnalytics: ${err.message}`);
             return empty;
         }
     }

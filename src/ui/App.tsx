@@ -8,7 +8,6 @@ import ChatWindow from './components/chat/ChatWindow';
 import MessageInput from './components/chat/MessageInput';
 import ConversationInfo from './components/chat/ConversationInfo';
 import GroupBoardPanel from './components/chat/GroupBoardPanel';
-import AIQuickPanel from './components/integration/AIQuickPanel';
 import ReminderNotification from './components/chat/ReminderNotification';
 import FriendRequestNotification, { FriendRequestNotifData } from './components/common/FriendRequestNotification';
 import QuickChatModal from './components/chat/QuickChatModal';
@@ -49,7 +48,6 @@ export default function App() {
     showConversationInfo, toggleConversationInfo,
     showGroupBoard, setShowGroupBoard,
     showIntegrationQuickPanel, toggleIntegrationQuickPanel,
-    showAIQuickPanel, toggleAIQuickPanel,
     openQuickChat, quickChatOpen, theme, fontSizeScale
   } = useAppStore();
   const { setAccounts, updateListenerActive, accounts } = useAccountStore();
@@ -693,13 +691,12 @@ export default function App() {
   }, [reconnectAfterNetworkRestore]);
 
   const rightInfoOverlayOpen =
-      showGroupBoard || showConversationInfo || showIntegrationQuickPanel || showAIQuickPanel;
+      showGroupBoard || showConversationInfo || showIntegrationQuickPanel;
 
   const closeRightInfoOverlay = () => {
     if (showGroupBoard) setShowGroupBoard(false);
     if (showConversationInfo) toggleConversationInfo();
     if (showIntegrationQuickPanel) toggleIntegrationQuickPanel();
-    if (showAIQuickPanel) toggleAIQuickPanel();
   };
 
   // ─── Lock screen gate: block entire app until unlocked ───────────────────
@@ -830,15 +827,6 @@ export default function App() {
                         <div className="absolute inset-y-0 right-0 z-40 max-w-[92vw] overflow-hidden"
                             onClick={(e) => e.stopPropagation()}>
                           <ConversationInfo />
-                        </div>
-                    )}
-                    {/* Right panel: AI quick panel */}
-                    {showAIQuickPanel && (
-                        <div
-                            className="absolute inset-y-0 right-0 z-40 max-w-[92vw] overflow-hidden"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                          <AIQuickPanel onClose={toggleAIQuickPanel} />
                         </div>
                     )}
                   </div>

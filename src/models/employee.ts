@@ -1,4 +1,4 @@
-export const ALL_MODULES = ['chat', 'friends', 'crm', 'workflow', 'integration', 'analytics', 'ai_assistant', 'settings'] as const;
+export const ALL_MODULES = ['chat', 'friends', 'crm', 'workflow', 'integration', 'analytics', 'settings'] as const;
 export type EmployeeModule = typeof ALL_MODULES[number];
 
 export interface Employee {

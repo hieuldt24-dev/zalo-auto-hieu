@@ -279,12 +279,6 @@ declare global {
           topWorkflows: Array<{ workflowName: string; runs: number; successRate: number }>;
           timeline: Array<{ bucket: string; success: number; error: number }>;
         }>;
-        aiAnalytics: (params: { sinceTs: number; untilTs: number }) => Promise<{
-          success: boolean; totalRequests: number; totalTokens: number; totalPromptTokens: number; totalCompletionTokens: number;
-          byModel: Array<{ model: string; requests: number; tokens: number }>;
-          byAssistant: Array<{ assistantName: string; requests: number; tokens: number }>;
-          timeline: Array<{ bucket: string; requests: number; tokens: number }>;
-        }>;
         responseTime: (params: { zaloId: string; sinceTs: number; untilTs: number; threadType?: number }) => Promise<{
           success: boolean; avgSeconds: number; medianSeconds: number; minSeconds: number; maxSeconds: number;
           totalConversations: number; totalReplies: number;
@@ -359,24 +353,6 @@ declare global {
         execute:        (id: string, action: string, params?: any) => Promise<{ success: boolean; data?: any; error?: string }>;
         executeByType:  (type: string, action: string, params?: any) => Promise<{ success: boolean; data?: any; error?: string }>;
         getWebhookPort: () => Promise<{ success: boolean; port?: number }>;
-      };
-      ai: {
-        listAssistants:  () => Promise<{ success: boolean; assistants: any[]; error?: string }>;
-        getAssistant:    (id: string) => Promise<{ success: boolean; assistant?: any; error?: string }>;
-        getDefault:      () => Promise<{ success: boolean; assistant: any | null }>;
-        saveAssistant:   (assistant: any) => Promise<{ success: boolean; id?: string; error?: string }>;
-        deleteAssistant: (id: string) => Promise<{ success: boolean; error?: string }>;
-        testAssistant:   (id: string) => Promise<{ success: boolean; message?: string }>;
-        getFiles:        (assistantId: string) => Promise<{ success: boolean; files: any[]; error?: string }>;
-        uploadFile:      (assistantId: string, filePath: string) => Promise<{ success: boolean; id?: number; fileName?: string; error?: string }>;
-        removeFile:      (fileId: number) => Promise<{ success: boolean; error?: string }>;
-        suggest:         (assistantId: string, chatHistory: any[]) => Promise<{ success: boolean; suggestions: string[]; error?: string }>;
-        chat:            (assistantId: string, messages: any[], structured?: boolean, maxTokens?: number) => Promise<{ success: boolean; result?: string; totalTokens?: number; promptTokens?: number; completionTokens?: number; error?: string }>;
-        getAccountAssistant:  (zaloId: string, role: string) => Promise<{ success: boolean; assistant?: any | null; error?: string }>;
-        setAccountAssistant:  (zaloId: string, role: string, assistantId: string | null) => Promise<{ success: boolean; error?: string }>;
-        getAccountAssistants: (zaloId: string) => Promise<{ success: boolean; suggestion?: string | null; panel?: string | null; error?: string }>;
-        getUsageLogs:  (opts?: { assistantId?: string; dateFrom?: number; dateTo?: number; limit?: number }) => Promise<{ success: boolean; logs: any[]; error?: string }>;
-        getUsageStats: (opts?: { assistantId?: string; days?: number }) => Promise<{ success: boolean; stats: any[]; error?: string }>;
       };
       tunnel: {
         start:  () => Promise<{ success: boolean; url?: string; error?: string }>;
@@ -648,7 +624,6 @@ export const ipc = {
   analytics: window.electronAPI?.analytics,
   workflow: window.electronAPI?.workflow,
   integration: window.electronAPI?.integration,
-  ai: window.electronAPI?.ai,
   tunnel: window.electronAPI?.tunnel,
   employee: window.electronAPI?.employee,
   sync: window.electronAPI?.sync,

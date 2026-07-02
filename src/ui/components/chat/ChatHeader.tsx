@@ -24,7 +24,7 @@ interface HeaderLocalLabel {
 export default function ChatHeader() {
   const { activeThreadId, activeThreadType, contacts, updateContact } = useChatStore();
   const { activeAccountId, getActiveAccount } = useAccountStore();
-  const { showConversationInfo, toggleConversationInfo, searchOpen, toggleSearch, setSearchOpen, setSearchHighlightQuery, showNotification, labels: allLabels, setLabels, groupInfoCache, showGroupBoard, setShowGroupBoard, showIntegrationQuickPanel, toggleIntegrationQuickPanel, showAIQuickPanel, toggleAIQuickPanel, mergedInboxMode, setMobileShowChat } = useAppStore();
+  const { showConversationInfo, toggleConversationInfo, searchOpen, toggleSearch, setSearchOpen, setSearchHighlightQuery, showNotification, labels: allLabels, setLabels, groupInfoCache, showGroupBoard, setShowGroupBoard, showIntegrationQuickPanel, toggleIntegrationQuickPanel, mergedInboxMode, setMobileShowChat } = useAppStore();
   const isMobile = useIsMobile();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -831,13 +831,6 @@ export default function ChatHeader() {
               </svg>
             </button>
           )}
-          <button
-            title={showAIQuickPanel ? 'Đóng trợ lý AI' : 'Trợ lý AI'}
-            onClick={toggleAIQuickPanel}
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${showAIQuickPanel ? 'bg-purple-600 text-white' : 'hover:bg-gray-700 text-gray-400 hover:text-white'}`}
-          >
-            🤖
-          </button>
           <button
             title={showIntegrationQuickPanel ? 'Đóng tích hợp' : 'Tích hợp nhanh'}
             onClick={toggleIntegrationQuickPanel}

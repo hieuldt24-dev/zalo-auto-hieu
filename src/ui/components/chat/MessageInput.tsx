@@ -3,7 +3,6 @@ import {useChatStore} from '@/store/chatStore';
 import {useAccountStore} from '@/store/accountStore';
 import {useAppStore} from '@/store/appStore';
 import ipc from '@/lib/ipc';
-import AccountAssignmentPopup from './AccountAssignmentPopup';
 import {SendCardModal} from './GroupModals';
 import {CreatePollDialog, NoteViewModal} from './ChatWindow';
 import BankCardModal from './BankCardModal';
@@ -162,9 +161,6 @@ export default function MessageInput() {
   const [pinnedEditIconId, setPinnedEditIconId] = useState<string | null>(null);
   // Pinned shortcut: id of shortcut whose right-click context menu is open
   const [pinnedCtxMenu, setPinnedCtxMenu] = useState<string | null>(null);
-  // AI suggestions dropdown menu
-  const [showAiMenu, setShowAiMenu] = useState(false);
-  const [showAiAssignmentPopup, setShowAiAssignmentPopup] = useState(false);
   // Inline sticker suggestions (above input area)
   const [inlineStickerSuggestions, setInlineStickerSuggestions] = useState<any[]>([]);
   const inlineStickerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -183,7 +179,6 @@ export default function MessageInput() {
   const mentionListRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const moreMenuBtnRef = useRef<HTMLButtonElement>(null);
-  const aiMenuRef = useRef<HTMLDivElement>(null);
   // Track IME composition state (Vietnamese, Chinese, etc.) to avoid
   // clearing input before compositionend on macOS
   const isComposingRef = useRef(false);
@@ -198,7 +193,7 @@ export default function MessageInput() {
 
   const { activeThreadId, activeThreadType, addMessage, removeMessage, replyTo, setReplyTo, markReplied, setDraft, clearDraft } = useChatStore();
   const { activeAccountId, getActiveAccount, accounts: allAccounts } = useAccountStore();
-  const { showNotification, groupInfoCache, mergedInboxMode, toggleIntegrationQuickPanel, pinnedIntegrationShortcuts, unpinIntegrationShortcut, editPinnedShortcutIcon, openIntegrationPanelTo, aiSuggestionsEnabled, aiSuggestions, aiSuggestionsLoading, setAiSuggestionsEnabled, setAiSuggestions, setAiSuggestionsLoading, isAiSuggestDisabled, toggleAiDisableForThread, toggleAiDisableForAccount, aiSuggestDisabledThreads, aiSuggestDisabledAccounts } = useAppStore();
+  const { showNotification, groupInfoCache, mergedInboxMode, toggleIntegrationQuickPanel, pinnedIntegrationShortcuts, unpinIntegrationShortcut, editPinnedShortcutIcon, openIntegrationPanelTo } = useAppStore();
 
   // Channel capability for active thread
   const activeContact = useChatStore(s => (s.contacts[activeAccountId || ''] || []).find(c => c.contact_id === activeThreadId));
@@ -263,127 +258,6 @@ export default function MessageInput() {
       setThreadLocalLabelIds(new Set());
     }
   }, [activeAccountId, activeThreadId]);
-
-  // ─── AI: listen for insert-to-chat events from AIQuickPanel ──────────────
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const text = (e as CustomEvent).detail?.text;
-      if (text && textareaRef.current) {
-        textareaRef.current.innerText = text;
-        setText(text);
-      }
-    };
-    window.addEventListener('ai:insertToChat', handler);
-    return () => window.removeEventListener('ai:insertToChat', handler);
-  }, []);
-
-  // ─── AI: fetch suggestions when new message arrives in active thread ──────
-  const aiSuggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const aiSuggestCacheRef = useRef<{ hash: string; suggestions: string[] }>({ hash: '', suggestions: [] });
-
-  // Shared function to fetch AI suggestions for the current thread
-  const fetchAiSuggestions = useCallback(async () => {
-    if (!activeAccountId || !activeThreadId) return;
-    if (useAppStore.getState().isAiSuggestDisabled(activeAccountId, activeThreadId)) return;
-    try {
-      setAiSuggestionsLoading(true);
-      // Get per-account suggestion assistant
-      const accRes = await ipc.ai?.getAccountAssistant(activeAccountId, 'suggestion');
-      const assistantId = accRes?.assistant?.id;
-      if (!assistantId) { setAiSuggestionsLoading(false); return; }
-      // Get context message count from assistant
-      const contextCount = accRes?.assistant?.contextMessageCount || 30;
-      // Get recent messages — include image context
-      const key = `${activeAccountId}_${activeThreadId}`;
-      const msgs = useChatStore.getState().messages[key] || [];
-      const recent = msgs.slice(-contextCount).map((m: any) => {
-        const role = m.is_sent ? 'assistant' : 'user';
-        // Detect image messages and describe them in context
-        const msgType = m.msg_type || '';
-        const isImage = msgType === 'chat.photo' || msgType === 'photo' || msgType === 'image';
-        if (isImage) {
-          return { role, content: '[Hình ảnh được gửi]' };
-        }
-        // Try to detect image from content structure
-        if (typeof m.content === 'object' && m.content !== null) {
-          let params: any = m.content?.params;
-          if (typeof params === 'string') { try { params = JSON.parse(params); } catch { params = null; } }
-          if (params?.hd || params?.rawUrl || m.content?.thumb) {
-            const textPart = m.content?.msg || m.content?.title || '';
-            return { role, content: textPart ? `[Hình ảnh kèm text: ${textPart}]` : '[Hình ảnh được gửi]' };
-          }
-          return { role, content: m.content?.msg || m.content?.title || '' };
-        }
-        return { role, content: typeof m.content === 'string' ? m.content : '' };
-      }).filter((m: any) => m.content.trim());
-      if (recent.length === 0) { setAiSuggestionsLoading(false); return; }
-      // Cache: skip API call if context hasn't changed
-      const contextHash = recent.map((m: any) => `${m.role}:${m.content}`).join('|');
-      if (contextHash === aiSuggestCacheRef.current.hash && aiSuggestCacheRef.current.suggestions.length > 0) {
-        setAiSuggestions(aiSuggestCacheRef.current.suggestions);
-        setAiSuggestionsLoading(false);
-        return;
-      }
-      const res = await ipc.ai?.suggest(assistantId, recent);
-      if (res?.success && res.suggestions?.length) {
-        setAiSuggestions(res.suggestions);
-        aiSuggestCacheRef.current = { hash: contextHash, suggestions: res.suggestions };
-      } else {
-      }
-    } catch {}
-    setAiSuggestionsLoading(false);
-  }, [activeAccountId, activeThreadId]);
-
-  useEffect(() => {
-    if (!activeAccountId || !activeThreadId) return;
-    // Check granular disable
-    if (isAiSuggestDisabled(activeAccountId, activeThreadId)) return;
-
-    // Trigger initial fetch when effect runs (feature enabled, thread switch, etc.)
-    if (aiSuggestTimerRef.current) clearTimeout(aiSuggestTimerRef.current);
-    aiSuggestTimerRef.current = setTimeout(() => {
-      fetchAiSuggestions();
-    }, 1500);
-
-    // Listen for new messages via custom event from useZaloEvents
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.zaloId !== activeAccountId || detail?.threadId !== activeThreadId) return;
-      // Re-check disable in case it changed
-      if (useAppStore.getState().isAiSuggestDisabled(activeAccountId, activeThreadId)) return;
-      // Debounce 1.5s
-      if (aiSuggestTimerRef.current) clearTimeout(aiSuggestTimerRef.current);
-      aiSuggestTimerRef.current = setTimeout(() => {
-        fetchAiSuggestions();
-      }, 1500);
-    };
-    window.addEventListener('ai:newMessage', handler);
-    return () => {
-      window.removeEventListener('ai:newMessage', handler);
-      if (aiSuggestTimerRef.current) clearTimeout(aiSuggestTimerRef.current);
-    };
-  }, [activeAccountId, activeThreadId, aiSuggestDisabledThreads, aiSuggestDisabledAccounts, aiSuggestionsEnabled, fetchAiSuggestions]);
-
-  // Clear suggestions & cache when thread changes
-  useEffect(() => {
-    setAiSuggestions([]);
-    aiSuggestCacheRef.current = { hash: '', suggestions: [] };
-  }, [activeThreadId]);
-
-  // ─── Notify ChatWindow when AI suggestions bar height changes ─────────────
-  // Khi thanh gợi ý AI xuất hiện/biến mất, input area thay đổi chiều cao
-  // → cần scroll chat xuống dưới nếu user đang ở cuối trang
-  const prevSuggestionsVisibleRef = useRef(false);
-  useEffect(() => {
-    const isVisible = !!(aiSuggestions.length > 0 || aiSuggestionsLoading);
-    if (isVisible !== prevSuggestionsVisibleRef.current) {
-      prevSuggestionsVisibleRef.current = isVisible;
-      // Dispatch sau 1 frame để DOM đã cập nhật chiều cao
-      requestAnimationFrame(() => {
-        window.dispatchEvent(new CustomEvent('ai:suggestionsBarChanged', { detail: { visible: isVisible } }));
-      });
-    }
-  }, [aiSuggestions, aiSuggestionsLoading]);
 
   // ─── Outgoing typing event (debounced) ────────────────────────────────────
   // Theo chuẩn các nền tảng lớn (WhatsApp/Telegram):
@@ -991,11 +865,6 @@ export default function MessageInput() {
           e.preventDefault();
           e.stopPropagation();
           setShowCreateNote(true);
-          return;
-        case 's': // Toggle AI Quick Panel
-          e.preventDefault();
-          e.stopPropagation();
-          useAppStore.getState().toggleAIQuickPanel();
           return;
         case 'i': // Toggle conversation info panel
           e.preventDefault();
@@ -2156,30 +2025,8 @@ export default function MessageInput() {
     };
   }, [activeThreadId]);
 
-  useEffect(() => {
-    if (!showAiMenu) return;
-
-    const handlePointerDownOutside = (e: MouseEvent) => {
-      if (aiMenuRef.current && !aiMenuRef.current.contains(e.target as Node)) {
-        setShowAiMenu(false);
-      }
-    };
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowAiMenu(false);
-    };
-
-    document.addEventListener('mousedown', handlePointerDownOutside, true);
-    document.addEventListener('keydown', handleEscape);
-
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDownOutside, true);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [showAiMenu]);
-
   const handleSendSticker = () => {
     setShowEmojiPicker(false);
-    setShowAiMenu(false);
     setShowStickerPicker((v) => !v);
   };
 
@@ -2629,38 +2476,6 @@ export default function MessageInput() {
         </div>
       )}
 
-      {/* AI Suggestions bar */}
-      {activeAccountId && activeThreadId && !isAiSuggestDisabled(activeAccountId, activeThreadId) && (aiSuggestions.length > 0 || aiSuggestionsLoading) && (
-        <div className="ai-suggestion-bar border-b overflow-x-auto">
-          <span className="ai-suggestion-badge">
-            <span className="text-[11px]">✨</span>
-            <span>Gợi ý AI</span>
-          </span>
-          {aiSuggestionsLoading ? (
-            <span className="ai-suggestion-loading animate-pulse">
-              Đang gợi ý câu trả lời...
-            </span>
-          ) : (
-            aiSuggestions.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => { setText(s); if (textareaRef.current) textareaRef.current.innerText = s; setAiSuggestions([]); }}
-                className="ai-suggestion-chip group"
-                title={s}
-              >
-                <span className="ai-suggestion-chip-text line-clamp-2 break-words">{s}</span>
-              </button>
-            ))
-          )}
-          <button
-            onClick={() => setAiSuggestions([])}
-            className="ai-suggestion-close"
-            title="Ẩn gợi ý"
-          >
-            ✕
-          </button>
-        </div>
-      )}
 
       {/* Reply preview */}
       {replyTo && (
@@ -3068,65 +2883,6 @@ export default function MessageInput() {
             ))}
           </>
         )}
-
-        {/* AI Suggestions toggle with dropdown */}
-        <div ref={aiMenuRef} className="relative">
-          <ToolbarBtn
-            onClick={() => {
-              setShowStickerPicker(false);
-              setShowAiMenu(v => !v);
-            }}
-            title="Gợi ý AI"
-            active={aiSuggestionsEnabled && !(activeAccountId && activeThreadId && isAiSuggestDisabled(activeAccountId, activeThreadId))}
-          >
-            <span className="text-sm leading-none relative">
-                🤖
-              <span className="absolute bottom-3 left-2">✨</span>
-            </span>
-          </ToolbarBtn>
-          {showAiMenu && (
-            <div className="absolute bottom-full left-0 mb-2 w-64 overflow-hidden rounded-2xl border border-purple-500/20 bg-gray-800/95 shadow-2xl shadow-black/40 backdrop-blur z-50">
-              <div className="border-b border-purple-500/10 bg-gradient-to-r from-purple-500/10 via-transparent to-transparent px-3 py-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-purple-500">Gợi ý AI</p>
-                <p className="mt-0.5 text-[11px] text-gray-400">Tuỳ chỉnh nhanh cho hội thoại hiện tại</p>
-              </div>
-              <button
-                onClick={() => { setAiSuggestionsEnabled(!aiSuggestionsEnabled); setShowAiMenu(false); }}
-                className="w-full text-left px-3 py-2.5 hover:bg-purple-500/10 flex items-center gap-2.5 transition-colors"
-              >
-                <span className={`w-4 h-4 rounded-md border ${aiSuggestionsEnabled ? 'bg-blue-500 border-blue-500 shadow-sm shadow-blue-900/40' : 'border-gray-500 bg-gray-800'} flex items-center justify-center flex-shrink-0`}>
-                  {aiSuggestionsEnabled && <span className="text-white-important text-[8px]">✓</span>}
-                </span>
-                <span className="text-gray-200 leading-5">Bật gợi ý AI (toàn bộ)</span>
-              </button>
-              {activeAccountId && activeThreadId && (
-                <>
-                  <div className="mx-3 border-t border-gray-700/80" />
-                  <button
-                    onClick={() => { toggleAiDisableForThread(activeAccountId, activeThreadId); setShowAiMenu(false); }}
-                    className="w-full text-left px-3 py-2.5 hover:bg-purple-500/10 flex items-center gap-2.5 transition-colors"
-                  >
-                    <span className={`w-4 h-4 rounded-md border ${isAiSuggestDisabled(activeAccountId, activeThreadId) && !useAppStore.getState().aiSuggestDisabledAccounts[activeAccountId] ? 'bg-red-500 border-red-500 shadow-sm shadow-red-900/40' : 'border-gray-500 bg-gray-800'} flex items-center justify-center flex-shrink-0`}>
-                      {isAiSuggestDisabled(activeAccountId, activeThreadId) && !useAppStore.getState().aiSuggestDisabledAccounts[activeAccountId] && <span className="text-white-important text-[8px]">✓</span>}
-                    </span>
-                    <span className="text-gray-200 leading-5">Tắt ở hội thoại này</span>
-                  </button>
-                </>
-              )}
-              {activeAccountId && (
-                <button
-                  onClick={() => { toggleAiDisableForAccount(activeAccountId); setShowAiMenu(false); }}
-                  className="w-full text-left px-3 py-2.5 hover:bg-purple-500/10 flex items-center gap-2.5 transition-colors"
-                >
-                  <span className={`w-4 h-4 rounded-md border ${useAppStore.getState().aiSuggestDisabledAccounts[activeAccountId] ? 'bg-red-500 border-red-500 shadow-sm shadow-red-900/40' : 'border-gray-500 bg-gray-800'} flex items-center justify-center flex-shrink-0`}>
-                    {useAppStore.getState().aiSuggestDisabledAccounts[activeAccountId] && <span className="text-white-important text-[8px]">✓</span>}
-                  </span>
-                  <span className="text-gray-200 leading-5">Tắt toàn bộ tài khoản này</span>
-                </button>
-              )}
-            </div>
-          )}
-        </div>
 
         {/* Thêm tính năng — nhóm: poll/note/nhắc hẹn; user: chỉ nhắc hẹn */}
         <div className="relative">
