@@ -287,38 +287,8 @@ class CRMQueueService {
             }
 
             // Helper: send one block (text + images)
-            const sendBlock = async (block: ContentBlock, threadId: string, threadType: number): Promise<any[]> => {
-                const responses: any[] = [];
-                const text = substitute(block.text || '');
-                if (text.trim()) {
-                    const resp = await this.withTimeout((conn.api as any).sendMessage({ msg: text }, threadId, threadType), this.SEND_TIMEOUT_MS, 'sendMessage');
-                    responses.push(resp);
-                }
-                const imgs = (block.images || []).filter(Boolean);
-                if (imgs.length > 0) {
-                    await new Promise(r => setTimeout(r, 500));
-                    const attachments: any[] = [];
-                    for (const filePath of imgs) {
-                        try {
-                            const buffer = fs.readFileSync(filePath);
-                            const baseName = path.basename(filePath);
-                            const ext = path.extname(baseName) || '.jpg';
-                            const safeFilename = (path.extname(baseName) ? baseName : `${baseName}${ext}`) as `${string}.${string}`;
-                            let width = 0, height = 0;
-                            try { const dim = imageSize(buffer); width = dim.width ?? 0; height = dim.height ?? 0; } catch {}
-                            attachments.push({ data: buffer, filename: safeFilename, metadata: { totalSize: buffer.length, width, height } });
-                        } catch (readErr: any) {
-                            Logger.error(`[CRMQueue] Image read failed: ${filePath} → ${readErr.message}`);
-                            throw new Error(`Không đọc được ảnh: ${filePath} — ${readErr.message}`);
-                        }
-                    }
-                    if (attachments.length > 0) {
-                        const resp = await this.withTimeout((conn.api as any).sendMessage({ msg: '', attachments }, threadId, threadType), this.SEND_TIMEOUT_MS, 'sendMessage (ảnh)');
-                        responses.push(resp);
-                    }
-                }
-                return responses;
-            };
+            const sendBlock = (block: ContentBlock, threadId: string, threadType: number): Promise<any[]> =>
+                this.sendContentBlock(conn.api, block, threadId, threadType, substitute);
 
             // Legacy single-message string for log display
             const firstBlock = blocksToSend[0];
@@ -535,6 +505,213 @@ class CRMQueueService {
             // campaign mà contact cuối cùng bị lỗi (SĐT sai, bị chặn, exception...) sẽ
             // kẹt mãi ở status 'active' dù hàng đợi đã thực sự xử lý xong.
             this.checkCampaignCompletion(item.campaign_id, zaloId);
+        }
+    }
+
+    /** Gửi 1 khối nội dung (text + ảnh). Dùng chung cho chiến dịch và tin gửi bù sau khi kết bạn. */
+    private async sendContentBlock(
+        api: any,
+        block: { text?: string; images?: string[] },
+        threadId: string,
+        threadType: number,
+        substitute: (tpl: string) => string,
+    ): Promise<any[]> {
+        const responses: any[] = [];
+        const text = substitute(block.text || '');
+        if (text.trim()) {
+            const resp = await this.withTimeout(api.sendMessage({ msg: text }, threadId, threadType), this.SEND_TIMEOUT_MS, 'sendMessage');
+            responses.push(resp);
+        }
+        const imgs = (block.images || []).filter(Boolean);
+        if (imgs.length > 0) {
+            await new Promise(r => setTimeout(r, 500));
+            const attachments: any[] = [];
+            for (const filePath of imgs) {
+                try {
+                    const buffer = fs.readFileSync(filePath);
+                    const baseName = path.basename(filePath);
+                    const ext = path.extname(baseName) || '.jpg';
+                    const safeFilename = (path.extname(baseName) ? baseName : `${baseName}${ext}`) as `${string}.${string}`;
+                    let width = 0, height = 0;
+                    try { const dim = imageSize(buffer); width = dim.width ?? 0; height = dim.height ?? 0; } catch {}
+                    attachments.push({ data: buffer, filename: safeFilename, metadata: { totalSize: buffer.length, width, height } });
+                } catch (readErr: any) {
+                    Logger.error(`[CRMQueue] Image read failed: ${filePath} → ${readErr.message}`);
+                    throw new Error(`Không đọc được ảnh: ${filePath} — ${readErr.message}`);
+                }
+            }
+            if (attachments.length > 0) {
+                const resp = await this.withTimeout(api.sendMessage({ msg: '', attachments }, threadId, threadType), this.SEND_TIMEOUT_MS, 'sendMessage (ảnh)');
+                responses.push(resp);
+            }
+        }
+        return responses;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Tự gửi tin nhắn sau khi người nhận đồng ý kết bạn
+    // ───────────────────────────────────────────────────────────────────────
+    // Chiến dịch Hỗn hợp (Tin nhắn + Kết bạn): người chặn tin từ người lạ sẽ làm
+    // bước "Tin nhắn" lỗi, chỉ lời mời kết bạn đến được. Khi họ đồng ý kết bạn,
+    // gửi lại nội dung chiến dịch cho họ (mỗi người 1 lần, chiến dịch gần nhất).
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private static readonly FOLLOW_UP_MARK = '[Tự gửi sau kết bạn]';
+    private readonly FOLLOW_UP_WINDOW_MS = 14 * 24 * 60 * 60 * 1000; // chỉ xét tin lỗi trong 14 ngày gần nhất
+    private followUpInFlight: Set<string> = new Set();               // `${zaloId}:${userId}`
+    private followUpBackfillRunning: Set<string> = new Set();         // zaloId
+
+    /**
+     * Danh sách (chiến dịch, người nhận) có bước "Tin nhắn" của chiến dịch Hỗn hợp bị lỗi
+     * và chưa từng gửi tin thành công. Mỗi người chỉ lấy chiến dịch gần nhất.
+     */
+    private findFollowUpCandidates(
+        zaloId: string,
+        opts: { userId?: string; onlyKnownFriends?: boolean } = {},
+    ): Array<{ campaign_id: number; contact_id: string; display_name: string; phone: string; template_message: string }> {
+        const db = DatabaseService.getInstance();
+        const params: any[] = [zaloId, Date.now() - this.FOLLOW_UP_WINDOW_MS];
+        let extra = '';
+        if (opts.userId) {
+            extra += ' AND l.contact_id = ?';
+            params.push(opts.userId);
+        }
+        if (opts.onlyKnownFriends) {
+            // Gửi bù khi khởi động: chỉ người đã có trong danh sách bạn bè và chưa từng được gửi bù
+            extra += ` AND EXISTS (SELECT 1 FROM friends f WHERE f.owner_zalo_id = l.owner_zalo_id AND f.user_id = l.contact_id)
+                       AND NOT EXISTS (SELECT 1 FROM crm_send_log m WHERE m.owner_zalo_id = l.owner_zalo_id
+                                       AND m.campaign_id = l.campaign_id AND m.contact_id = l.contact_id
+                                       AND m.message LIKE ?)`;
+            params.push(`${CRMQueueService.FOLLOW_UP_MARK}%`);
+        }
+        const rows = db.query<any>(
+            `SELECT l.campaign_id, l.contact_id, MAX(l.display_name) AS display_name, MAX(l.phone) AS phone,
+                    c.template_message, MAX(l.sent_at) AS last_at
+             FROM crm_send_log l
+             JOIN crm_campaigns c ON c.id = l.campaign_id
+             WHERE l.owner_zalo_id = ? AND l.sent_at >= ?
+               AND l.contact_type = 'user' AND l.send_type = 'message' AND l.status = 'failed'
+               AND c.campaign_type = 'mixed'
+               AND NOT EXISTS (SELECT 1 FROM crm_send_log s WHERE s.owner_zalo_id = l.owner_zalo_id
+                               AND s.campaign_id = l.campaign_id AND s.contact_id = l.contact_id
+                               AND s.send_type = 'message' AND s.status = 'sent')
+               ${extra}
+             GROUP BY l.campaign_id, l.contact_id
+             ORDER BY last_at DESC`,
+            params,
+        );
+        const seen = new Set<string>();
+        return rows.filter(r => !seen.has(r.contact_id) && (seen.add(r.contact_id), true));
+    }
+
+    /** Gửi nội dung chiến dịch cho 1 người vừa trở thành bạn bè. Trả về true nếu gửi thành công. */
+    private async sendFollowUp(
+        zaloId: string,
+        cand: { campaign_id: number; contact_id: string; display_name: string; phone: string; template_message: string },
+        displayNameOverride?: string,
+    ): Promise<boolean> {
+        const key = `${zaloId}:${cand.contact_id}`;
+        if (this.followUpInFlight.has(key)) return false;
+        const conn = ConnectionManager.getConnection(zaloId);
+        if (!conn?.api) {
+            Logger.warn(`[CRMQueue] Follow-up: no connection for ${zaloId}`);
+            return false;
+        }
+        this.followUpInFlight.add(key);
+        const db = DatabaseService.getInstance();
+        const userId = cand.contact_id;
+        const displayName = displayNameOverride || cand.display_name || '';
+        try {
+            // Parse template giống chiến dịch (random 1 khối / gửi tất cả)
+            let blocks: Array<{ text?: string; images?: string[] }> = [];
+            let mode: 'random' | 'all' = 'random';
+            try {
+                const p = JSON.parse(cand.template_message || '');
+                if (p && Array.isArray(p.blocks)) { blocks = p.blocks; mode = p.mode === 'all' ? 'all' : 'random'; }
+            } catch {}
+            if (blocks.length === 0 && cand.template_message) blocks = [{ text: cand.template_message, images: [] }];
+            if (blocks.length === 0) return false;
+            const toSend = mode === 'all' ? blocks : [blocks[Math.floor(Math.random() * blocks.length)]];
+
+            const substitute = (tpl: string) => (tpl || '')
+                .replace(/\{name\}/g, displayName || userId)
+                .replace(/\{userId\}/g, userId);
+
+            const errors: string[] = [];
+            const responses: any[] = [];
+            for (let i = 0; i < toSend.length; i++) {
+                if (i > 0) await new Promise(r => setTimeout(r, 1000));
+                try {
+                    responses.push(...await this.sendContentBlock(conn.api, toSend[i], userId, 0, substitute));
+                } catch (e: any) {
+                    errors.push(e?.message || String(e));
+                }
+            }
+
+            const describe = toSend.map(b => {
+                const t = substitute(b.text || '').trim();
+                const n = (b.images || []).filter(Boolean).length;
+                return t && n ? `${t} + ${n} ảnh` : t || (n ? `[${n} ảnh]` : '(trống)');
+            }).join(' | ');
+            const ok = errors.length === 0;
+            db.saveSendLog({
+                owner_zalo_id: zaloId, contact_id: userId, display_name: displayName, phone: cand.phone || '',
+                contact_type: 'user', campaign_id: cand.campaign_id, sent_at: Date.now(),
+                message: `${CRMQueueService.FOLLOW_UP_MARK} ${describe}`,
+                status: ok ? 'sent' : 'failed', error: errors.join('; '), send_type: 'message',
+                data_request: JSON.stringify({ type: 'sendMessage', reason: 'friend_accepted', threadId: userId, blocks: toSend.length }),
+                data_response: responses.length > 0 ? JSON.stringify(responses.length === 1 ? responses[0] : responses) : '',
+            } as any);
+            db.save();
+            if (ok) Logger.log(`[CRMQueue] Follow-up ✅ → ${userId} (campaign ${cand.campaign_id})`);
+            else Logger.warn(`[CRMQueue] Follow-up ❌ → ${userId}: ${errors.join('; ')}`);
+            this.broadcastProgress(zaloId, cand.campaign_id, userId, ok ? 'sent' : 'failed', ok ? undefined : errors.join('; '));
+            return ok;
+        } catch (err: any) {
+            Logger.error(`[CRMQueue] Follow-up error → ${userId}: ${err.message}`);
+            return false;
+        } finally {
+            this.followUpInFlight.delete(key);
+        }
+    }
+
+    /**
+     * Gọi khi nhận sự kiện "đã trở thành bạn bè". Nếu người này nằm trong chiến dịch
+     * Hỗn hợp mà tin nhắn bị lỗi, đợi một lúc rồi gửi lại nội dung chiến dịch.
+     */
+    public async sendFollowUpAfterFriendAccept(zaloId: string, userId: string, displayName?: string): Promise<void> {
+        try {
+            const [cand] = this.findFollowUpCandidates(zaloId, { userId });
+            if (!cand) return;
+            const waitMs = 8000 + Math.floor(Math.random() * 12000); // 8–20s cho tự nhiên
+            Logger.log(`[CRMQueue] ${userId} accepted friend request → follow-up for campaign ${cand.campaign_id} in ${Math.round(waitMs / 1000)}s`);
+            await new Promise(r => setTimeout(r, waitMs));
+            await this.sendFollowUp(zaloId, cand, displayName);
+        } catch (err: any) {
+            Logger.warn(`[CRMQueue] sendFollowUpAfterFriendAccept: ${err.message}`);
+        }
+    }
+
+    /**
+     * Gửi bù khi tài khoản kết nối: người đã đồng ý kết bạn lúc app đang tắt
+     * (hoặc trước khi có tính năng này). Mỗi người chỉ thử 1 lần, cách nhau ≥ 45s.
+     */
+    public async runFollowUpBackfill(zaloId: string): Promise<void> {
+        if (this.followUpBackfillRunning.has(zaloId)) return;
+        this.followUpBackfillRunning.add(zaloId);
+        try {
+            const cands = this.findFollowUpCandidates(zaloId, { onlyKnownFriends: true });
+            if (cands.length === 0) return;
+            Logger.log(`[CRMQueue] Follow-up backfill for ${zaloId}: ${cands.length} người`);
+            for (let i = 0; i < cands.length; i++) {
+                if (i > 0) await new Promise(r => setTimeout(r, 45000 + Math.floor(Math.random() * 30000)));
+                if (!ConnectionManager.getConnection(zaloId)?.api) break;
+                await this.sendFollowUp(zaloId, cands[i]);
+            }
+        } catch (err: any) {
+            Logger.warn(`[CRMQueue] runFollowUpBackfill: ${err.message}`);
+        } finally {
+            this.followUpBackfillRunning.delete(zaloId);
         }
     }
 

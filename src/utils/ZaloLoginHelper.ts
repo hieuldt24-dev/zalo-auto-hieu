@@ -7,6 +7,13 @@ import * as fs from "fs";
 import { imageSize } from "image-size";
 import { extractUserProfile } from "./profileUtils";
 import { createProxyAgent } from "./ProxyHelper";
+import type CRMQueueServiceType from "../services/crm/CRMQueueService";
+
+/** Nạp CRMQueueService lúc cần (tránh vòng import ZaloLoginHelper ↔ ConnectionManager ↔ CRMQueueService) */
+function getCRMQueue(): CRMQueueServiceType {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require("../services/crm/CRMQueueService").default.getInstance();
+}
 
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY_BASE_MS = 5000; // 5s base, exponential backoff
@@ -1007,6 +1014,9 @@ class ZaloLoginHelper {
                             avatar,
                             phoneNumber: phone,
                         });
+                        // Chiến dịch Hỗn hợp: tin nhắn bị chặn vì chưa là bạn → giờ đã là bạn, gửi lại
+                        getCRMQueue().sendFollowUpAfterFriendAccept(zaloId, friendId, displayName)
+                            .catch((e: any) => Logger.warn(`[ZaloLoginHelper] follow-up after accept failed: ${e?.message}`));
                     }
                     return;
                 }
@@ -1054,6 +1064,11 @@ class ZaloLoginHelper {
             ConnectionManager.setConnected(zaloId, true);
             DatabaseService.getInstance().setListenerActive(zaloId, true);
             EventBroadcaster.broadcastConnected(zaloId, { zaloId });
+            // Gửi bù cho người đã đồng ý kết bạn lúc app đang tắt (đợi kết nối ổn định)
+            setTimeout(() => {
+                getCRMQueue().runFollowUpBackfill(zaloId)
+                    .catch((e: any) => Logger.warn(`[ZaloLoginHelper] follow-up backfill failed: ${e?.message}`));
+            }, 30000);
         });
 
         const handleDisconnection = (eventType: string, code: CloseReason, reason: string) => {

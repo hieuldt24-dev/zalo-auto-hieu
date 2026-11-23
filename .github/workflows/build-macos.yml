@@ -4,7 +4,7 @@
 #   2. ffmpeg-static download binary theo platform khi npm install
 #   3. electron-builder cần macOS để tạo .dmg
 #
-# Trigger: push tag v* HOẶC chạy tay (workflow_dispatch)
+# Trigger: chạy tay (workflow_dispatch). Push tag v* thì dùng build-all.yml
 # Chi phí: macOS runner = $0.08/phút (private repo). ~15 phút/build = ~$1.2/build
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -37,14 +37,11 @@ on:
         default: ''
         type: string
 
-  # Tự động khi push tag
-  push:
-    tags:
-      - 'v*'
+  # Chỉ chạy tay — khi push tag v* thì build-all.yml build cả 3 nền tảng
 
 # ─── SECRETS cần cấu hình trong GitHub repo Settings → Secrets ──────────────
 # Bắt buộc:
-#   GH_TOKEN          — GitHub Personal Access Token (repo scope)
+#   Không cần secret riêng — dùng GITHUB_TOKEN mặc định của GitHub Actions
 #
 # Tùy chọn (Code Signing - thêm sau nếu có Apple Developer Account):
 #   CSC_LINK           — Base64 của file .p12 certificate
@@ -110,7 +107,7 @@ jobs:
       - name: 📦 Build macOS app (arm64)
         run: npx electron-builder --mac --arm64 --publish never
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # CSC_LINK: ${{ secrets.CSC_LINK }}
           # CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
 
@@ -118,22 +115,22 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          repository: huyhoang171/zalo-auto
+          repository: ${{ github.repository }}
           tag_name: ${{ steps.get_tag.outputs.tag }}
           name: "ZaloAuto ${{ steps.get_tag.outputs.tag }}"
           files: |
             dist-electron-build/*.dmg
             dist-electron-build/*.blockmap
             dist-electron-build/latest-mac.yml
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: false
           make_latest: true
           fail_on_unmatched_files: false
 
       # ─── File .dmg sau khi publish ──────────────────────────────────────────
-      # Xem release tại: https://github.com/huyhoang171/zalo-auto/releases
+      # Xem release tại: https://github.com/hieuldt24-dev/zalo-auto-hieu/releases
       # Link tải cố định:
-      #   https://github.com/huyhoang171/zalo-auto/releases/latest/download/ZaloAuto-{version}-arm64.dmg
+      #   https://github.com/hieuldt24-dev/zalo-auto-hieu/releases/latest/download/ZaloAuto-{version}-arm64.dmg
       # ─────────────────────────────────────────────────────────────────────────
 

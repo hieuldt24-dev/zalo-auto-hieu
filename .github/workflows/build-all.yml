@@ -32,7 +32,7 @@ on:
       - 'v*'
 
 # ─── SECRETS cần cấu hình ────────────────────────────────────────────────────
-#   GH_TOKEN — GitHub Personal Access Token (repo scope)
+#   Không cần secret riêng — dùng GITHUB_TOKEN mặc định của GitHub Actions
 
 jobs:
   # ═══════════════════════════════════════════════════════════════════════════
@@ -102,7 +102,7 @@ jobs:
         if: needs.resolve-tag.outputs.should_publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          repository: huyhoang171/zalo-auto
+          repository: ${{ github.repository }}
           tag_name: ${{ needs.resolve-tag.outputs.tag }}
           name: "ZaloAuto ${{ needs.resolve-tag.outputs.tag }}"
           files: |
@@ -112,7 +112,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: false
-          make_latest: false
+          make_latest: true
           fail_on_unmatched_files: false
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -152,7 +152,7 @@ jobs:
         if: needs.resolve-tag.outputs.should_publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          repository: huyhoang171/zalo-auto
+          repository: ${{ github.repository }}
           tag_name: ${{ needs.resolve-tag.outputs.tag }}
           name: "ZaloAuto ${{ needs.resolve-tag.outputs.tag }}"
           files: |
@@ -210,7 +210,7 @@ jobs:
         if: needs.resolve-tag.outputs.should_publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          repository: huyhoang171/zalo-auto
+          repository: ${{ github.repository }}
           tag_name: ${{ needs.resolve-tag.outputs.tag }}
           name: "ZaloAuto ${{ needs.resolve-tag.outputs.tag }}"
           files: |
@@ -221,6 +221,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: false
-          make_latest: false
+          make_latest: true
           fail_on_unmatched_files: false
 

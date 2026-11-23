@@ -2,7 +2,7 @@
 # Chạy trên ubuntu-latest runner (GitHub Actions).
 # Sinh ra .AppImage + .deb cho x64.
 #
-# Trigger: push tag v* HOẶC chạy tay (workflow_dispatch)
+# Trigger: chạy tay (workflow_dispatch). Push tag v* thì dùng build-all.yml
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Build Ubuntu
@@ -30,12 +30,10 @@ on:
         default: ''
         type: string
 
-  push:
-    tags:
-      - 'v*'
+  # Chỉ chạy tay — khi push tag v* thì build-all.yml build cả 3 nền tảng
 
 # ─── SECRETS cần cấu hình ────────────────────────────────────────────────────
-#   GH_TOKEN — GitHub Personal Access Token (repo scope)
+#   Không cần secret riêng — dùng GITHUB_TOKEN mặc định của GitHub Actions
 
 jobs:
   build-ubuntu:
@@ -94,7 +92,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          repository: huyhoang171/zalo-auto
+          repository: ${{ github.repository }}
           tag_name: ${{ steps.get_tag.outputs.tag }}
           name: "ZaloAuto ${{ steps.get_tag.outputs.tag }}"
           files: |
@@ -103,11 +101,11 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: false
-          make_latest: false
+          make_latest: true
           fail_on_unmatched_files: false
 
       # ─── File sau khi publish ──────────────────────────────────────────────
-      # Xem release tại: https://github.com/huyhoang171/zalo-auto/releases
+      # Xem release tại: https://github.com/hieuldt24-dev/zalo-auto-hieu/releases
       # Link tải cố định:
-      #   https://github.com/huyhoang171/zalo-auto/releases/latest/download/ZaloAuto-{version}.AppImage
-      #   https://github.com/huyhoang171/zalo-auto/releases/latest/download/ZaloAuto_{version}_amd64.deb
+      #   https://github.com/hieuldt24-dev/zalo-auto-hieu/releases/latest/download/ZaloAuto-{version}.AppImage
+      #   https://github.com/hieuldt24-dev/zalo-auto-hieu/releases/latest/download/ZaloAuto_{version}_amd64.deb
