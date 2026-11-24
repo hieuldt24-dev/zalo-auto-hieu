@@ -333,8 +333,10 @@ class CRMQueueService {
                         responses.push(...resps);
                         sent++;
                     } catch (blockErr: any) {
-                        const errMsg = blockErr?.message || String(blockErr);
+                        const errMsg = formatZaloError(blockErr);
                         errors.push(errMsg);
+                        // Lưu chi tiết lỗi (kèm mã lỗi Zalo) vào data_response để phân loại sau
+                        responses.push(zaloErrorDetail(blockErr, bi));
                         Logger.error(`[CRMQueue] Block ${bi + 1}/${blocks.length} failed for ${threadId}: ${errMsg}`);
                     }
                 }
@@ -390,16 +392,11 @@ class CRMQueueService {
                             Logger.log(`[CRMQueue] Mixed/invite_to_groups ✅ → ${effectiveContactId} into ${mixedGroupIds.length} groups`);
                         }
                     } catch (actionErr: any) {
-                        const errCode = Number(actionErr?.errorCode ?? actionErr?.code ?? actionErr?.error_code ?? -1);
                         const req = { type: action, userId: effectiveContactId };
-                        const errResponse = {
-                            error: true,
-                            message: actionErr.message,
-                            errorCode: errCode !== -1 ? errCode : undefined,
-                        };
+                        const errResponse = zaloErrorDetail(actionErr);
                         db.saveSendLog({ ...logBase,
                             message: `[Hỗn hợp/${action}] Lỗi: ${actionErr.message}`,
-                            status: 'failed', error: actionErr.message,
+                            status: 'failed', error: formatZaloError(actionErr),
                             data_request: JSON.stringify(req), data_response: JSON.stringify(errResponse) });
                         Logger.warn(`[CRMQueue] Mixed/${action} ❌ → ${effectiveContactId}: ${actionErr.message}`);
                         anyFailed = true;
@@ -474,7 +471,7 @@ class CRMQueueService {
             this.broadcastProgress(zaloId, item.campaign_id, effectiveContactId, 'sent');
 
         } catch (err: any) {
-            const errMsg = err?.message || String(err);
+            const errMsg = formatZaloError(err);
             Logger.error(`[CRMQueue] ❌ Failed to send to ${effectiveContactId}: ${errMsg}`);
             // Always save log on failure — use describeBlock for human-readable message
             const fallbackLogMsg = blocksToSend.length > 0
@@ -483,11 +480,7 @@ class CRMQueueService {
             try {
                 db.updateCampaignContactStatus(item.id!, 'failed', errMsg);
                 // Capture error response details if available
-                const errResponse: any = {
-                    error: true,
-                    message: errMsg,
-                    errorCode: err?.errorCode ?? err?.code ?? err?.error_code ?? undefined,
-                };
+                const errResponse = zaloErrorDetail(err);
                 db.saveSendLog({ ...logBase,
                     message: `[Lỗi] ${errMsg} — ${fallbackLogMsg}`,
                     status: 'failed', error: errMsg,
@@ -644,7 +637,8 @@ class CRMQueueService {
                 try {
                     responses.push(...await this.sendContentBlock(conn.api, toSend[i], userId, 0, substitute));
                 } catch (e: any) {
-                    errors.push(e?.message || String(e));
+                    errors.push(formatZaloError(e));
+                    responses.push(zaloErrorDetail(e, i));
                 }
             }
 
@@ -782,6 +776,32 @@ class CRMQueueService {
 }
 
 export default CRMQueueService;
+
+/** Lấy mã lỗi Zalo từ lỗi zca-js (ZaloApiError.code) hoặc các dạng khác. */
+function getZaloErrorCode(err: any): number | undefined {
+    const raw = err?.code ?? err?.errorCode ?? err?.error_code;
+    if (raw === null || raw === undefined || raw === '') return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : undefined;
+}
+
+/** Chuỗi lỗi để lưu vào cột `error`: thông báo + mã lỗi Zalo (nếu có). */
+function formatZaloError(err: any): string {
+    const msg = err?.message || String(err);
+    const code = getZaloErrorCode(err);
+    return code !== undefined ? `${msg} (mã ${code})` : msg;
+}
+
+/** Chi tiết lỗi lưu vào data_response — giữ nguyên mã lỗi để phân loại/thống kê. */
+function zaloErrorDetail(err: any, blockIndex?: number): Record<string, any> {
+    return {
+        error: true,
+        ...(blockIndex !== undefined ? { block: blockIndex } : {}),
+        message: err?.message || String(err),
+        errorCode: getZaloErrorCode(err),
+        name: err?.name,
+    };
+}
 
 /**
  * Kiểm tra lỗi gửi tin nhắn có phải do người dùng chặn người lạ không.
