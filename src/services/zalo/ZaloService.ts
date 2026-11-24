@@ -1407,6 +1407,15 @@ export default class ZaloService {
         }
     }
 
+    /** Thu hồi lời mời kết bạn đã gửi (zca-js: api.undoFriendRequest) */
+    public async undoFriendRequest(friendId: string): Promise<any> {
+        if (!this.api) {
+            throw new Error("API not initialized. Please ensure you've called initialize() first.");
+        }
+
+        return await this.api.undoFriendRequest(friendId);
+    }
+
     /**
      * Lấy URL proxy đang được sử dụng cho kết nối Zalo hiện tại
      * @returns The proxy URL or null if not assigned

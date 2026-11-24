@@ -1,5 +1,6 @@
-# ─── Build ZaloAuto — Windows + macOS cùng lúc ───────────────────────────────
-# Workflow tổng hợp: trigger cả 2 job song song, publish lên cùng 1 Release tag
+# ─── Build ZaloAuto — Windows (+ macOS / Ubuntu khi chạy tay) ────────────────
+# - Push tag v*        → chỉ build + publish Windows
+# - Chạy tay (Actions) → build cả Windows, macOS, Ubuntu lên cùng 1 Release tag
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Build All Platforms
@@ -120,6 +121,8 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   build-mac-arm64:
     needs: resolve-tag
+    # Push tag chỉ build Windows — macOS chỉ chạy khi chạy tay workflow
+    if: github.event_name == 'workflow_dispatch'
     runs-on: macos-15
     timeout-minutes: 30
 
@@ -170,6 +173,8 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   build-ubuntu:
     needs: resolve-tag
+    # Push tag chỉ build Windows — Ubuntu chỉ chạy khi chạy tay workflow
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
